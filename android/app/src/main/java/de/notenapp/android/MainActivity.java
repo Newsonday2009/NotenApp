@@ -8,47 +8,53 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
 public class MainActivity extends Activity {
 
-    private static final int BG = Color.rgb(244, 247, 251);
-    private static final int CARD = Color.WHITE;
-    private static final int PRIMARY = Color.rgb(66, 82, 180);
-    private static final int PRIMARY_DARK = Color.rgb(42, 55, 145);
-    private static final int PRIMARY_SOFT = Color.rgb(232, 235, 252);
-    private static final int TEXT = Color.rgb(31, 41, 55);
-    private static final int MUTED = Color.rgb(107, 114, 128);
-    private static final int BORDER = Color.rgb(226, 232, 240);
-    private static final int SUCCESS = Color.rgb(22, 163, 74);
-    private static final int SUCCESS_SOFT = Color.rgb(236, 253, 245);
-    private static final int DANGER = Color.rgb(220, 38, 38);
-    private static final int DANGER_SOFT = Color.rgb(254, 242, 242);
-    private static final int WARNING_SOFT = Color.rgb(255, 247, 237);
+    private static final int COLOR_BACKGROUND = Color.rgb(244, 247, 252);
+    private static final int COLOR_PRIMARY = Color.rgb(58, 91, 192);
+    private static final int COLOR_PRIMARY_DARK = Color.rgb(40, 67, 150);
+    private static final int COLOR_ACCENT = Color.rgb(103, 80, 164);
+    private static final int COLOR_GREEN = Color.rgb(34, 133, 88);
+    private static final int COLOR_TEXT = Color.rgb(31, 36, 48);
+    private static final int COLOR_MUTED = Color.rgb(102, 111, 132);
+    private static final int COLOR_BORDER = Color.rgb(222, 228, 239);
+    private static final int COLOR_DANGER = Color.rgb(177, 45, 45);
 
     private FrameLayout contentContainer;
-    private Button homeNavButton;
-    private Button gradesNavButton;
-    private Button financeNavButton;
-
     private int selectedClass = 12;
 
+    // Normale Fächer-/Notenverwaltung
     private final Map<Integer, ArrayList<String>> subjectsByClass = new HashMap<>();
     private final Map<String, ArrayList<Integer>> writtenGradesBySubject = new HashMap<>();
     private final Map<String, ArrayList<Integer>> oralGradesBySubject = new HashMap<>();
+
+    // Oberstufe Sachsen-Anhalt: vier Kurshalbjahre + Abiturprüfung
+    private final ArrayList<String> upperSubjects = new ArrayList<>();
+    private final Map<String, int[]> upperHalfyearPoints = new HashMap<>();
+    private final Map<String, boolean[]> upperIncluded = new HashMap<>();
+
+    private final String[] examSubjects = {"", "", "", "", ""};
+    private final int[] examPoints = {-1, -1, -1, -1, -1};
+    private boolean doubleWeightP1P2 = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -56,7 +62,7 @@ public class MainActivity extends Activity {
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(BG);
+        root.setBackgroundColor(COLOR_BACKGROUND);
 
         contentContainer = new FrameLayout(this);
         root.addView(contentContainer, new LinearLayout.LayoutParams(
@@ -76,42 +82,30 @@ public class MainActivity extends Activity {
     // --------------------------------------------------
 
     private View createBottomNavigation() {
-        LinearLayout wrapper = new LinearLayout(this);
-        wrapper.setOrientation(LinearLayout.VERTICAL);
-        wrapper.setPadding(dp(12), dp(8), dp(12), dp(10));
-        wrapper.setBackgroundColor(CARD);
-        wrapper.setElevation(dp(12));
-
-        View divider = new View(this);
-        divider.setBackgroundColor(BORDER);
-        wrapper.addView(divider, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(1)
-        ));
-
         LinearLayout navigation = new LinearLayout(this);
         navigation.setOrientation(LinearLayout.HORIZONTAL);
         navigation.setGravity(Gravity.CENTER);
-        navigation.setPadding(0, dp(8), 0, 0);
+        navigation.setPadding(dp(10), dp(10), dp(10), dp(12));
+        navigation.setBackgroundColor(Color.WHITE);
+        navigation.setElevation(dp(10));
 
-        gradesNavButton = createNavButton("Noten");
-        homeNavButton = createNavButton("Home");
-        financeNavButton = createNavButton("Finanzen");
+        Button gradesButton = createNavButton("▣  Noten");
+        Button homeButton = createNavButton("⌂  Home");
+        Button financeButton = createNavButton("€  Finanzen");
 
-        gradesNavButton.setOnClickListener(v -> showGradesPage());
-        homeNavButton.setOnClickListener(v -> showHomePage());
-        financeNavButton.setOnClickListener(v -> showFinancePage());
+        gradesButton.setOnClickListener(v -> showGradesPage());
+        homeButton.setOnClickListener(v -> showHomePage());
+        financeButton.setOnClickListener(v -> showFinancePage());
 
-        navigation.addView(gradesNavButton, navParams());
-        navigation.addView(homeNavButton, navParams());
-        navigation.addView(financeNavButton, navParams());
-        wrapper.addView(navigation);
+        navigation.addView(gradesButton, navParams());
+        navigation.addView(homeButton, navParams());
+        navigation.addView(financeButton, navParams());
 
-        return wrapper;
+        return navigation;
     }
 
     private LinearLayout.LayoutParams navParams() {
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(46), 1f);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(50), 1f);
         params.setMargins(dp(4), 0, dp(4), 0);
         return params;
     }
@@ -120,180 +114,121 @@ public class MainActivity extends Activity {
         Button button = new Button(this);
         button.setText(text);
         button.setAllCaps(false);
-        button.setTextSize(14);
+        button.setTextColor(COLOR_TEXT);
+        button.setTextSize(13);
         button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        button.setPadding(dp(8), 0, dp(8), 0);
-        styleNavButton(button, false);
+        button.setBackground(createRoundedBackground(Color.rgb(239, 242, 248), dp(16), 0, Color.TRANSPARENT));
         return button;
     }
 
-    private void setActiveNavigation(String page) {
-        styleNavButton(homeNavButton, "home".equals(page));
-        styleNavButton(gradesNavButton, "grades".equals(page));
-        styleNavButton(financeNavButton, "finance".equals(page));
-    }
-
-    private void styleNavButton(Button button, boolean active) {
-        if (button == null) {
-            return;
-        }
-        button.setTextColor(active ? Color.WHITE : MUTED);
-        button.setBackground(roundedBackground(active ? PRIMARY : Color.TRANSPARENT, 14, 0, Color.TRANSPARENT));
-        button.setElevation(active ? dp(2) : 0);
-    }
-
     // --------------------------------------------------
-    // HOME
+    // STARTSEITE
     // --------------------------------------------------
 
     private void showHomePage() {
-        setActiveNavigation("home");
+        syncUpperSubjectsFromClasses();
 
         LinearLayout page = createVerticalPage();
-        page.addView(createEyebrow("NOTENAPP"));
-        page.addView(createTitle("Dein Überblick"));
-        page.addView(createSubtitle("Alles Wichtige für deine Schule an einem Ort."));
 
-        LinearLayout heroCard = new LinearLayout(this);
-        heroCard.setOrientation(LinearLayout.VERTICAL);
-        heroCard.setPadding(dp(20), dp(20), dp(20), dp(20));
-        heroCard.setBackground(gradientBackground(
-                new int[]{PRIMARY_DARK, PRIMARY},
-                22
+        TextView eyebrow = createText("NOTENAPP", 12, true);
+        eyebrow.setTextColor(COLOR_PRIMARY);
+        eyebrow.setLetterSpacing(0.16f);
+        page.addView(eyebrow);
+
+        page.addView(createTitle("Dein Schul-Dashboard"));
+        page.addView(createSubtitle("Noten, Oberstufe und später auch Finanzen an einem Ort."));
+
+        LinearLayout hero = createTintedCard(Color.rgb(233, 238, 255), COLOR_PRIMARY);
+        hero.addView(createText("Klasse " + selectedClass, 27, true));
+        hero.addView(createText(
+                getSubjectsForClass(selectedClass).size() + " Fächer angelegt",
+                15,
+                false
         ));
-        heroCard.setElevation(dp(5));
-        LinearLayout.LayoutParams heroParams = fullWidthWrap();
-        heroParams.setMargins(0, dp(8), 0, dp(14));
-        heroCard.setLayoutParams(heroParams);
 
-        TextView heroLabel = createText("Aktuelle Klassenstufe", 13, true);
-        heroLabel.setTextColor(Color.rgb(219, 224, 255));
-        heroCard.addView(heroLabel);
+        Button openGrades = createPrimaryButton("Noten öffnen  →");
+        openGrades.setOnClickListener(v -> showGradesPage());
+        hero.addView(openGrades);
+        page.addView(hero);
 
-        TextView heroClass = createText("Klasse " + selectedClass, 34, true);
-        heroClass.setTextColor(Color.WHITE);
-        heroClass.setPadding(0, dp(2), 0, dp(14));
-        heroCard.addView(heroClass);
+        if (selectedClass >= 11) {
+            LinearLayout upperCard = createTintedCard(Color.rgb(242, 236, 255), COLOR_ACCENT);
+            upperCard.addView(createText("🎓 Oberstufe Sachsen-Anhalt", 20, true));
+            upperCard.addView(createText(
+                    "4 Kurshalbjahre, Abiturprüfungen und Gesamtqualifikation.",
+                    15,
+                    false
+            ));
 
-        LinearLayout heroStats = new LinearLayout(this);
-        heroStats.setOrientation(LinearLayout.HORIZONTAL);
-        heroStats.addView(createHeroStat("Fächer", String.valueOf(getSubjectsForClass(selectedClass).size())),
-                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        heroStats.addView(createHeroStat("Einträge", String.valueOf(countGradeEntriesForClass(selectedClass))),
-                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        heroCard.addView(heroStats);
+            UpperSummary summary = calculateUpperSummary();
+            if (summary.filledHalfyears > 0) {
+                upperCard.addView(createText(
+                        "Aktuell erfasst: " + summary.filledHalfyears + " Kurshalbjahresergebnisse",
+                        14,
+                        true
+                ));
+            }
 
-        Button heroButton = createPrimaryButton("Noten verwalten");
-        GradientDrawable heroButtonBg = roundedBackground(Color.WHITE, 14, 0, Color.TRANSPARENT);
-        heroButton.setBackground(heroButtonBg);
-        heroButton.setTextColor(PRIMARY_DARK);
-        heroButton.setOnClickListener(v -> showGradesPage());
-        LinearLayout.LayoutParams heroButtonParams = fullWidthHeight(48);
-        heroButtonParams.setMargins(0, dp(16), 0, 0);
-        heroCard.addView(heroButton, heroButtonParams);
-
-        page.addView(heroCard);
-
-        page.addView(createSectionHeading("Schnellzugriff", "Was möchtest du machen?"));
+            Button upperButton = createAccentButton("Oberstufe öffnen  →");
+            upperButton.setOnClickListener(v -> showUpperSecondaryPage());
+            upperCard.addView(upperButton);
+            page.addView(upperCard);
+        }
 
         LinearLayout quickRow = new LinearLayout(this);
         quickRow.setOrientation(LinearLayout.HORIZONTAL);
 
-        LinearLayout gradesCard = createMiniCard("Noten", "Fächer & Bewertungen", PRIMARY_SOFT, PRIMARY);
-        gradesCard.setOnClickListener(v -> showGradesPage());
-        LinearLayout financeCard = createMiniCard("Finanzen", "Demnächst verfügbar", WARNING_SOFT, Color.rgb(194, 65, 12));
+        LinearLayout financeCard = createMiniCard("€", "Finanzen", "Kommt als Nächstes");
+        LinearLayout privacyCard = createMiniCard("✓", "Datenschutz", "Lokal & ohne Tracking");
+
+        quickRow.addView(financeCard, weightedCardParams());
+        quickRow.addView(privacyCard, weightedCardParams());
+
         financeCard.setOnClickListener(v -> showFinancePage());
+        privacyCard.setOnClickListener(v -> showPrivacyPage());
 
-        LinearLayout.LayoutParams miniLeft = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        miniLeft.setMargins(0, 0, dp(6), 0);
-        LinearLayout.LayoutParams miniRight = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        miniRight.setMargins(dp(6), 0, 0, 0);
-        quickRow.addView(gradesCard, miniLeft);
-        quickRow.addView(financeCard, miniRight);
         page.addView(quickRow);
-
-        LinearLayout privacyCard = createCard();
-        LinearLayout privacyHeader = new LinearLayout(this);
-        privacyHeader.setOrientation(LinearLayout.HORIZONTAL);
-        privacyHeader.setGravity(Gravity.CENTER_VERTICAL);
-
-        TextView privacyIcon = createCircleBadge("✓", SUCCESS_SOFT, SUCCESS);
-        privacyHeader.addView(privacyIcon);
-
-        LinearLayout privacyText = new LinearLayout(this);
-        privacyText.setOrientation(LinearLayout.VERTICAL);
-        privacyText.setPadding(dp(12), 0, 0, 0);
-        privacyText.addView(createText("Datenschutz aktiv", 17, true));
-        TextView privacyInfo = createText("Kein Tracking • keine Werbung • keine Internetberechtigung", 13, false);
-        privacyInfo.setTextColor(MUTED);
-        privacyText.addView(privacyInfo);
-        privacyHeader.addView(privacyText, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-
-        privacyCard.addView(privacyHeader);
-        Button privacyButton = createSecondaryButton("Sicherheit ansehen");
-        privacyButton.setOnClickListener(v -> showPrivacyPage());
-        LinearLayout.LayoutParams privacyButtonParams = fullWidthHeight(46);
-        privacyButtonParams.setMargins(0, dp(12), 0, 0);
-        privacyCard.addView(privacyButton, privacyButtonParams);
-        page.addView(privacyCard);
 
         showInContent(wrapInScrollView(page));
     }
 
-    private LinearLayout createHeroStat(String label, String value) {
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding(dp(14), dp(10), dp(14), dp(10));
-        box.setBackground(roundedBackground(Color.argb(38, 255, 255, 255), 14, 0, Color.TRANSPARENT));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        params.setMargins(dp(3), 0, dp(3), 0);
-        box.setLayoutParams(params);
-
-        TextView valueText = createText(value, 21, true);
-        valueText.setTextColor(Color.WHITE);
-        box.addView(valueText);
-        TextView labelText = createText(label, 12, false);
-        labelText.setTextColor(Color.rgb(224, 228, 255));
-        box.addView(labelText);
-        return box;
+    private LinearLayout.LayoutParams weightedCardParams() {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        params.setMargins(dp(4), dp(4), dp(4), dp(4));
+        return params;
     }
 
-    private LinearLayout createMiniCard(String title, String subtitle, int bgColor, int accentColor) {
+    private LinearLayout createMiniCard(String symbol, String title, String subtitle) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(16), dp(16), dp(16), dp(16));
-        card.setBackground(roundedBackground(bgColor, 18, 0, Color.TRANSPARENT));
-        card.setClickable(true);
-        card.setFocusable(true);
+        card.setPadding(dp(15), dp(16), dp(15), dp(16));
+        card.setBackground(createRoundedBackground(Color.WHITE, dp(20), dp(1), COLOR_BORDER));
+        card.setElevation(dp(2));
 
-        TextView dot = createCircleBadge("•", Color.WHITE, accentColor);
-        card.addView(dot);
-        TextView titleText = createText(title, 18, true);
-        titleText.setPadding(0, dp(10), 0, 0);
-        card.addView(titleText);
-        TextView subtitleText = createText(subtitle, 13, false);
-        subtitleText.setTextColor(MUTED);
-        card.addView(subtitleText);
+        TextView icon = createText(symbol, 24, true);
+        icon.setTextColor(COLOR_PRIMARY);
+        card.addView(icon);
+        card.addView(createText(title, 16, true));
+
+        TextView sub = createText(subtitle, 12, false);
+        sub.setTextColor(COLOR_MUTED);
+        card.addView(sub);
+
         return card;
     }
 
     // --------------------------------------------------
-    // NOTENÜBERSICHT
+    // NORMALE NOTEN / FÄCHER
     // --------------------------------------------------
 
     private void showGradesPage() {
-        setActiveNavigation("grades");
-
         LinearLayout page = createVerticalPage();
-        page.addView(createEyebrow("SCHULE"));
+
         page.addView(createTitle("Noten"));
-        page.addView(createSubtitle("Wähle deine Klasse und verwalte deine Fächer."));
+        page.addView(createSubtitle("Wähle deine Klassenstufe und verwalte deine Fächer."));
 
         LinearLayout classCard = createCard();
-        classCard.addView(createLabel("Klassenstufe"));
+        classCard.addView(createText("Klassenstufe", 15, true));
 
         Spinner classSpinner = new Spinner(this);
         ArrayList<Integer> classes = new ArrayList<>();
@@ -307,23 +242,88 @@ public class MainActivity extends Activity {
         );
         classSpinner.setAdapter(classAdapter);
         classSpinner.setSelection(selectedClass - 5);
-        classSpinner.setBackground(roundedBackground(Color.rgb(248, 250, 252), 12, 1, BORDER));
-        classSpinner.setPadding(dp(12), dp(4), dp(12), dp(4));
-        classCard.addView(classSpinner, fullWidthHeight(52));
+        classCard.addView(classSpinner);
 
-        TextView gradingPill = createPill(
-                selectedClass <= 10 ? "Notensystem 1–6" : "Punktesystem 0–15",
-                PRIMARY_SOFT,
-                PRIMARY
+        TextView gradingInfo = createText(
+                selectedClass <= 10
+                        ? "Bewertungssystem: Schulnoten 1 bis 6"
+                        : "Bewertungssystem: Notenpunkte 0 bis 15",
+                13,
+                false
         );
-        LinearLayout.LayoutParams gradingParams = wrapParams();
-        gradingParams.setMargins(0, dp(10), 0, 0);
-        classCard.addView(gradingPill, gradingParams);
+        gradingInfo.setTextColor(COLOR_MUTED);
+        classCard.addView(gradingInfo);
+
+        if (selectedClass >= 11) {
+            Button upperButton = createAccentButton("🎓  Oberstufe & Abitur");
+            upperButton.setOnClickListener(v -> showUpperSecondaryPage());
+            classCard.addView(upperButton);
+        }
+
         page.addView(classCard);
 
-        classSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+        TextView subjectsTitle = createSectionTitle("Deine Fächer");
+        page.addView(subjectsTitle);
+
+        ArrayList<String> subjects = getSubjectsForClass(selectedClass);
+        ArrayAdapter<String> subjectAdapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_list_item_activated_1,
+                subjects
+        );
+
+        ListView subjectList = new ListView(this);
+        subjectList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
+        subjectList.setAdapter(subjectAdapter);
+        subjectList.setBackground(createRoundedBackground(Color.WHITE, dp(18), dp(1), COLOR_BORDER));
+        subjectList.setDividerHeight(dp(1));
+        page.addView(subjectList, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+        ));
+
+        EditText subjectInput = new EditText(this);
+        subjectInput.setHint("Neues Fach, z. B. Mathematik");
+        subjectInput.setFilterTouchesWhenObscured(true);
+        subjectInput.setSingleLine(true);
+        subjectInput.setPadding(dp(14), dp(12), dp(14), dp(12));
+        subjectInput.setBackground(createRoundedBackground(Color.WHITE, dp(14), dp(1), COLOR_BORDER));
+        LinearLayout.LayoutParams inputParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(52)
+        );
+        inputParams.setMargins(0, dp(12), 0, dp(8));
+        page.addView(subjectInput, inputParams);
+
+        Button addButton = createPrimaryButton("+  Fach hinzufügen");
+        addButton.setFilterTouchesWhenObscured(true);
+        page.addView(addButton);
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setPadding(0, dp(8), 0, 0);
+
+        Button openButton = createSecondaryButton("Fach öffnen");
+        openButton.setEnabled(false);
+
+        Button deleteButton = createDangerButton("Löschen");
+        deleteButton.setEnabled(false);
+        deleteButton.setFilterTouchesWhenObscured(true);
+
+        LinearLayout.LayoutParams actionParams1 = new LinearLayout.LayoutParams(0, dp(50), 1.2f);
+        actionParams1.setMargins(0, 0, dp(5), 0);
+        LinearLayout.LayoutParams actionParams2 = new LinearLayout.LayoutParams(0, dp(50), 0.8f);
+        actionParams2.setMargins(dp(5), 0, 0, 0);
+        actions.addView(openButton, actionParams1);
+        actions.addView(deleteButton, actionParams2);
+        page.addView(actions);
+
+        final int[] selectedIndex = {-1};
+
+        classSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
-            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 int newClass = classes.get(position);
                 if (newClass != selectedClass) {
                     selectedClass = newClass;
@@ -332,51 +332,14 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public void onNothingSelected(android.widget.AdapterView<?> parent) {
+            public void onNothingSelected(AdapterView<?> parent) {
             }
         });
 
-        page.addView(createSectionHeading("Deine Fächer", getSubjectsForClass(selectedClass).size() + " angelegt"));
-
-        ArrayList<String> subjects = getSubjectsForClass(selectedClass);
-        if (subjects.isEmpty()) {
-            LinearLayout emptyCard = createCard();
-            TextView emptyIcon = createCircleBadge("+", PRIMARY_SOFT, PRIMARY);
-            emptyCard.addView(emptyIcon);
-            TextView emptyTitle = createText("Noch keine Fächer", 18, true);
-            emptyTitle.setPadding(0, dp(10), 0, 0);
-            emptyCard.addView(emptyTitle);
-            TextView emptyInfo = createText("Lege dein erstes Fach an, zum Beispiel Mathematik oder Deutsch.", 14, false);
-            emptyInfo.setTextColor(MUTED);
-            emptyCard.addView(emptyInfo);
-            page.addView(emptyCard);
-        } else {
-            for (String subject : new ArrayList<>(subjects)) {
-                page.addView(createSubjectCard(subject));
-            }
-        }
-
-        LinearLayout addCard = createCard();
-        addCard.addView(createText("Neues Fach", 17, true));
-
-        EditText subjectInput = new EditText(this);
-        subjectInput.setHint("z. B. Mathematik");
-        subjectInput.setSingleLine(true);
-        subjectInput.setTextColor(TEXT);
-        subjectInput.setHintTextColor(MUTED);
-        subjectInput.setBackground(roundedBackground(Color.rgb(248, 250, 252), 12, 1, BORDER));
-        subjectInput.setPadding(dp(14), 0, dp(14), 0);
-        subjectInput.setFilterTouchesWhenObscured(true);
-        LinearLayout.LayoutParams inputParams = fullWidthHeight(52);
-        inputParams.setMargins(0, dp(10), 0, dp(10));
-        addCard.addView(subjectInput, inputParams);
-
-        Button addButton = createPrimaryButton("Fach hinzufügen");
-        addButton.setFilterTouchesWhenObscured(true);
         addButton.setOnClickListener(v -> {
             String newSubject = subjectInput.getText().toString().trim();
             if (newSubject.isEmpty()) {
-                Toast.makeText(this, "Bitte gib einen Fachnamen ein.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Bitte einen Fachnamen eingeben.", Toast.LENGTH_SHORT).show();
                 return;
             }
 
@@ -394,123 +357,72 @@ public class MainActivity extends Activity {
             }
 
             subjects.add(newSubject);
+            if (selectedClass >= 11) {
+                addUpperSubject(newSubject);
+            }
+            subjectAdapter.notifyDataSetChanged();
             subjectInput.setText("");
-            showGradesPage();
         });
-        addCard.addView(addButton, fullWidthHeight(48));
-        page.addView(addCard);
 
-        showInContent(wrapInScrollView(page));
+        subjectList.setOnItemClickListener((parent, view, position, id) -> {
+            selectedIndex[0] = position;
+            openButton.setEnabled(true);
+            deleteButton.setEnabled(true);
+        });
+
+        subjectList.setOnItemLongClickListener((parent, view, position, id) -> {
+            showSubjectPage(subjects.get(position));
+            return true;
+        });
+
+        openButton.setOnClickListener(v -> {
+            if (selectedIndex[0] >= 0 && selectedIndex[0] < subjects.size()) {
+                showSubjectPage(subjects.get(selectedIndex[0]));
+            }
+        });
+
+        deleteButton.setOnClickListener(v -> {
+            if (selectedIndex[0] >= 0 && selectedIndex[0] < subjects.size()) {
+                String deletedSubject = subjects.get(selectedIndex[0]);
+
+                new AlertDialog.Builder(this)
+                        .setTitle("Fach löschen?")
+                        .setMessage(deletedSubject + " wird aus Klasse " + selectedClass + " entfernt.")
+                        .setNegativeButton("Abbrechen", null)
+                        .setPositiveButton("Löschen", (dialog, which) -> {
+                            subjects.remove(selectedIndex[0]);
+                            writtenGradesBySubject.remove(createGradeKey(selectedClass, deletedSubject));
+                            oralGradesBySubject.remove(createGradeKey(selectedClass, deletedSubject));
+                            removeUpperSubjectIfUnused(deletedSubject);
+
+                            subjectAdapter.notifyDataSetChanged();
+                            selectedIndex[0] = -1;
+                            openButton.setEnabled(false);
+                            deleteButton.setEnabled(false);
+                        })
+                        .show();
+            }
+        });
+
+        showInContent(page);
     }
-
-    private LinearLayout createSubjectCard(String subject) {
-        LinearLayout card = createCard();
-
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        TextView initial = createCircleBadge(
-                subject.substring(0, 1).toUpperCase(Locale.GERMANY),
-                PRIMARY_SOFT,
-                PRIMARY
-        );
-        top.addView(initial);
-
-        LinearLayout textBox = new LinearLayout(this);
-        textBox.setOrientation(LinearLayout.VERTICAL);
-        textBox.setPadding(dp(12), 0, dp(8), 0);
-        textBox.addView(createText(subject, 18, true));
-
-        int writtenCount = getGradeEntries(selectedClass, subject, true).size();
-        int oralCount = getGradeEntries(selectedClass, subject, false).size();
-        TextView meta = createText((writtenCount + oralCount) + " Bewertungen", 13, false);
-        meta.setTextColor(MUTED);
-        textBox.addView(meta);
-        top.addView(textBox, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-
-        TextView arrow = createText("›", 30, false);
-        arrow.setTextColor(PRIMARY);
-        arrow.setGravity(Gravity.CENTER);
-        top.addView(arrow, new LinearLayout.LayoutParams(dp(30), dp(46)));
-
-        card.addView(top);
-        card.setClickable(true);
-        card.setFocusable(true);
-        card.setOnClickListener(v -> showSubjectPage(subject));
-
-        LinearLayout actionRow = new LinearLayout(this);
-        actionRow.setOrientation(LinearLayout.HORIZONTAL);
-        actionRow.setGravity(Gravity.END);
-        actionRow.setPadding(0, dp(10), 0, 0);
-
-        Button openButton = createSecondaryButton("Öffnen");
-        openButton.setOnClickListener(v -> showSubjectPage(subject));
-        LinearLayout.LayoutParams openParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
-        openParams.setMargins(0, 0, dp(5), 0);
-        actionRow.addView(openButton, openParams);
-
-        Button deleteButton = createDangerButton("Löschen");
-        deleteButton.setFilterTouchesWhenObscured(true);
-        deleteButton.setOnClickListener(v -> confirmDeleteSubject(subject));
-        LinearLayout.LayoutParams deleteParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
-        deleteParams.setMargins(dp(5), 0, 0, 0);
-        actionRow.addView(deleteButton, deleteParams);
-
-        card.addView(actionRow);
-        return card;
-    }
-
-    private void confirmDeleteSubject(String subject) {
-        new AlertDialog.Builder(this)
-                .setTitle(subject + " löschen?")
-                .setMessage("Das Fach und alle dazugehörigen Noteneinträge werden aus dieser Sitzung entfernt.")
-                .setNegativeButton("Abbrechen", null)
-                .setPositiveButton("Löschen", (dialog, which) -> {
-                    getSubjectsForClass(selectedClass).remove(subject);
-                    writtenGradesBySubject.remove(createGradeKey(selectedClass, subject));
-                    oralGradesBySubject.remove(createGradeKey(selectedClass, subject));
-                    showGradesPage();
-                })
-                .show();
-    }
-
-    // --------------------------------------------------
-    // FACHSEITE
-    // --------------------------------------------------
 
     private void showSubjectPage(String subject) {
-        setActiveNavigation("grades");
-
         LinearLayout page = createVerticalPage();
-        page.addView(createBackButton("Zurück zu den Fächern", this::showGradesPage));
-        page.addView(createEyebrow("KLASSE " + selectedClass));
+
+        Button backButton = createBackButton("←  Zurück zu den Fächern");
+        backButton.setOnClickListener(v -> showGradesPage());
+        page.addView(backButton);
+
         page.addView(createTitle(subject));
         page.addView(createSubtitle(
-                selectedClass <= 10 ? "Bewertung mit Schulnoten von 1 bis 6" : "Bewertung mit 0 bis 15 Notenpunkten"
+                "Klasse " + selectedClass + "  •  " +
+                        (selectedClass <= 10 ? "Noten 1–6" : "Notenpunkte 0–15")
         ));
-
-        int totalEntries = getGradeEntries(selectedClass, subject, true).size()
-                + getGradeEntries(selectedClass, subject, false).size();
-        LinearLayout summary = createCard();
-        LinearLayout summaryRow = new LinearLayout(this);
-        summaryRow.setOrientation(LinearLayout.HORIZONTAL);
-        summaryRow.setGravity(Gravity.CENTER_VERTICAL);
-        summaryRow.addView(createCircleBadge(String.valueOf(totalEntries), PRIMARY_SOFT, PRIMARY));
-        LinearLayout summaryText = new LinearLayout(this);
-        summaryText.setOrientation(LinearLayout.VERTICAL);
-        summaryText.setPadding(dp(12), 0, 0, 0);
-        summaryText.addView(createText("Gesamte Einträge", 16, true));
-        TextView summarySub = createText("Schriftlich und mündlich zusammen", 13, false);
-        summarySub.setTextColor(MUTED);
-        summaryText.addView(summarySub);
-        summaryRow.addView(summaryText);
-        summary.addView(summaryRow);
-        page.addView(summary);
 
         String writtenTitle = selectedClass >= 11 ? "Klausuren" : "Klassenarbeiten";
         page.addView(createGradeCard(subject, writtenTitle, true));
-        page.addView(createGradeCard(subject, "Mündliche Noten", false));
+        page.addView(createGradeCard(subject, "Mündliche Leistungen", false));
 
         showInContent(wrapInScrollView(page));
     }
@@ -522,59 +434,56 @@ public class MainActivity extends Activity {
         heading.setOrientation(LinearLayout.HORIZONTAL);
         heading.setGravity(Gravity.CENTER_VERTICAL);
 
-        TextView icon = createCircleBadge(written ? "S" : "M", written ? PRIMARY_SOFT : SUCCESS_SOFT, written ? PRIMARY : SUCCESS);
-        heading.addView(icon);
-
-        LinearLayout titleBox = new LinearLayout(this);
-        titleBox.setOrientation(LinearLayout.VERTICAL);
-        titleBox.setPadding(dp(12), 0, 0, 0);
-        titleBox.addView(createText(title, 18, true));
-        TextView typeInfo = createText(written ? "Schriftliche Bewertungen" : "Mündliche Bewertungen", 13, false);
-        typeInfo.setTextColor(MUTED);
-        titleBox.addView(typeInfo);
-        heading.addView(titleBox, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        card.addView(heading);
+        TextView titleView = createText(title, 19, true);
+        heading.addView(titleView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
         ArrayList<Integer> entries = getGradeEntries(selectedClass, subject, written);
+        if (!entries.isEmpty()) {
+            TextView avgChip = createChip(calculateAverage(entries), written ? COLOR_PRIMARY : COLOR_ACCENT);
+            heading.addView(avgChip);
+        }
+        card.addView(heading);
 
         if (entries.isEmpty()) {
-            TextView empty = createText("Noch keine Einträge vorhanden.", 14, false);
-            empty.setTextColor(MUTED);
-            empty.setGravity(Gravity.CENTER);
-            empty.setPadding(0, dp(18), 0, dp(18));
+            TextView empty = createText("Noch keine Einträge. Füge unten deine erste Bewertung hinzu.", 14, false);
+            empty.setTextColor(COLOR_MUTED);
             card.addView(empty);
         } else {
-            TextView average = createPill(
-                    "Ø  " + calculateAverage(entries),
-                    written ? PRIMARY_SOFT : SUCCESS_SOFT,
-                    written ? PRIMARY : SUCCESS
-            );
-            LinearLayout.LayoutParams averageParams = wrapParams();
-            averageParams.setMargins(0, dp(14), 0, dp(8));
-            card.addView(average, averageParams);
-
             for (int i = 0; i < entries.size(); i++) {
                 final int index = i;
-                int value = entries.get(i);
-                card.addView(createGradeRow(subject, entries, index, value));
+
+                LinearLayout row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setGravity(Gravity.CENTER_VERTICAL);
+                row.setPadding(0, dp(5), 0, dp(5));
+
+                TextView number = createChip(String.valueOf(entries.get(i)), gradeAccent(entries.get(i)));
+                row.addView(number);
+
+                TextView valueText = createText(
+                        "  " + (written ? "Schriftlicher" : "Mündlicher") + " Eintrag " + (i + 1),
+                        15,
+                        false
+                );
+                row.addView(valueText, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+                Button removeButton = createSmallDangerButton("×");
+                removeButton.setContentDescription("Eintrag löschen");
+                removeButton.setFilterTouchesWhenObscured(true);
+                removeButton.setOnClickListener(v -> {
+                    entries.remove(index);
+                    showSubjectPage(subject);
+                });
+                row.addView(removeButton, new LinearLayout.LayoutParams(dp(44), dp(44)));
+
+                card.addView(row);
             }
         }
-
-        View spacer = new View(this);
-        card.addView(spacer, new LinearLayout.LayoutParams(1, dp(8)));
-
-        LinearLayout addArea = new LinearLayout(this);
-        addArea.setOrientation(LinearLayout.VERTICAL);
-        addArea.setPadding(dp(12), dp(12), dp(12), dp(12));
-        addArea.setBackground(roundedBackground(Color.rgb(248, 250, 252), 14, 1, BORDER));
-
-        TextView chooseLabel = createText(selectedClass <= 10 ? "Neue Note" : "Neue Notenpunkte", 14, true);
-        addArea.addView(chooseLabel);
 
         LinearLayout addRow = new LinearLayout(this);
         addRow.setOrientation(LinearLayout.HORIZONTAL);
         addRow.setGravity(Gravity.CENTER_VERTICAL);
-        addRow.setPadding(0, dp(8), 0, 0);
+        addRow.setPadding(0, dp(10), 0, 0);
 
         Spinner gradeSpinner = new Spinner(this);
         ArrayList<Integer> possibleValues = getPossibleGradeValues();
@@ -582,16 +491,15 @@ public class MainActivity extends Activity {
         for (Integer value : possibleValues) {
             displayValues.add(formatGradeValue(value));
         }
+
         ArrayAdapter<String> gradeAdapter = new ArrayAdapter<>(
                 this,
                 android.R.layout.simple_spinner_dropdown_item,
                 displayValues
         );
         gradeSpinner.setAdapter(gradeAdapter);
-        gradeSpinner.setBackground(roundedBackground(Color.WHITE, 12, 1, BORDER));
-        gradeSpinner.setPadding(dp(10), 0, dp(10), 0);
 
-        Button addGradeButton = createPrimaryButton("Hinzufügen");
+        Button addGradeButton = createPrimaryButton(selectedClass <= 10 ? "+ Note" : "+ Punkte");
         addGradeButton.setFilterTouchesWhenObscured(true);
         addGradeButton.setOnClickListener(v -> {
             int position = gradeSpinner.getSelectedItemPosition();
@@ -601,173 +509,828 @@ public class MainActivity extends Activity {
             }
         });
 
-        LinearLayout.LayoutParams spinnerParams = new LinearLayout.LayoutParams(0, dp(48), 1f);
-        spinnerParams.setMargins(0, 0, dp(5), 0);
-        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(0, dp(48), 1f);
-        addParams.setMargins(dp(5), 0, 0, 0);
+        LinearLayout.LayoutParams spinnerParams = new LinearLayout.LayoutParams(0, dp(52), 1f);
+        spinnerParams.setMargins(0, 0, dp(6), 0);
+        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(0, dp(52), 0.85f);
+        addParams.setMargins(dp(6), 0, 0, 0);
+
         addRow.addView(gradeSpinner, spinnerParams);
         addRow.addView(addGradeButton, addParams);
-        addArea.addView(addRow);
-        card.addView(addArea);
+        card.addView(addRow);
 
         return card;
     }
 
-    private LinearLayout createGradeRow(String subject, ArrayList<Integer> entries, int index, int value) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(12), dp(9), dp(8), dp(9));
-        row.setBackground(roundedBackground(Color.rgb(250, 251, 253), 12, 1, BORDER));
-        LinearLayout.LayoutParams rowParams = fullWidthWrap();
-        rowParams.setMargins(0, dp(4), 0, dp(4));
-        row.setLayoutParams(rowParams);
-
-        TextView numberBadge = createPill(String.valueOf(index + 1), PRIMARY_SOFT, PRIMARY);
-        row.addView(numberBadge);
-
-        TextView valueText = createText(formatGradeValue(value), 16, true);
-        valueText.setPadding(dp(12), 0, 0, 0);
-        row.addView(valueText, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-
-        Button removeButton = createIconButton("×");
-        removeButton.setContentDescription("Eintrag löschen");
-        removeButton.setFilterTouchesWhenObscured(true);
-        removeButton.setOnClickListener(v -> {
-            entries.remove(index);
-            showSubjectPage(subject);
-        });
-        row.addView(removeButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
-        return row;
-    }
-
     // --------------------------------------------------
-    // FINANZEN
+    // OBERSTUFE SACHSEN-ANHALT
     // --------------------------------------------------
 
-    private void showFinancePage() {
-        setActiveNavigation("finance");
+    private void showUpperSecondaryPage() {
+        syncUpperSubjectsFromClasses();
 
         LinearLayout page = createVerticalPage();
-        page.addView(createEyebrow("DEMNÄCHST"));
-        page.addView(createTitle("Finanzen"));
-        page.addView(createSubtitle("Dein persönlicher Finanzbereich wird hier Schritt für Schritt aufgebaut."));
 
-        LinearLayout hero = createCard();
-        TextView icon = createCircleBadge("€", WARNING_SOFT, Color.rgb(194, 65, 12));
-        hero.addView(icon);
-        TextView heading = createText("Finanzmanager in Vorbereitung", 20, true);
-        heading.setPadding(0, dp(12), 0, dp(4));
-        hero.addView(heading);
-        TextView description = createText(
-                "Geplant sind Einnahmen und Ausgaben, Tages-, Wochen- und Monatsübersichten sowie einfache Statistiken.",
-                15,
-                false
-        );
-        description.setTextColor(MUTED);
-        hero.addView(description);
-        page.addView(hero);
+        Button backButton = createBackButton("←  Zurück zu Noten");
+        backButton.setOnClickListener(v -> showGradesPage());
+        page.addView(backButton);
 
-        LinearLayout features = createCard();
-        features.addView(createText("Geplante Funktionen", 17, true));
-        features.addView(createFeatureRow("T", "Tagesübersicht", "Was du heute ausgegeben hast"));
-        features.addView(createFeatureRow("W", "Wochenübersicht", "Deine Ausgaben der Woche"));
-        features.addView(createFeatureRow("M", "Monatsübersicht", "Entwicklung über den Monat"));
-        page.addView(features);
+        TextView eyebrow = createText("SACHSEN-ANHALT", 12, true);
+        eyebrow.setTextColor(COLOR_ACCENT);
+        eyebrow.setLetterSpacing(0.14f);
+        page.addView(eyebrow);
 
-        showInContent(wrapInScrollView(page));
-    }
+        page.addView(createTitle("Oberstufe & Abitur"));
+        page.addView(createSubtitle("Qualifikationsphase der Klassen 11 und 12"));
 
-    private LinearLayout createFeatureRow(String badge, String title, String subtitle) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, dp(10), 0, dp(10));
-        row.addView(createCircleBadge(badge, PRIMARY_SOFT, PRIMARY));
+        UpperSummary summary = calculateUpperSummary();
+        page.addView(createUpperSummaryCard(summary));
 
-        LinearLayout text = new LinearLayout(this);
-        text.setOrientation(LinearLayout.VERTICAL);
-        text.setPadding(dp(12), 0, 0, 0);
-        text.addView(createText(title, 15, true));
-        TextView subtitleView = createText(subtitle, 13, false);
-        subtitleView.setTextColor(MUTED);
-        text.addView(subtitleView);
-        row.addView(text);
-        return row;
-    }
+        TextView semestersTitle = createSectionTitle("4 Kurshalbjahre");
+        page.addView(semestersTitle);
 
-    // --------------------------------------------------
-    // DATENSCHUTZ
-    // --------------------------------------------------
+        String[] semesterNames = {"11/1", "11/2", "12/1", "12/2"};
+        for (int i = 0; i < semesterNames.length; i++) {
+            final int index = i;
+            LinearLayout semesterCard = createCard();
 
-    private void showPrivacyPage() {
-        setActiveNavigation("home");
+            LinearLayout top = new LinearLayout(this);
+            top.setOrientation(LinearLayout.HORIZONTAL);
+            top.setGravity(Gravity.CENTER_VERTICAL);
 
-        LinearLayout page = createVerticalPage();
-        page.addView(createBackButton("Zurück zur Startseite", this::showHomePage));
-        page.addView(createEyebrow("SICHERHEIT"));
-        page.addView(createTitle("Datenschutz"));
-        page.addView(createSubtitle("Du behältst die Kontrolle über deine Daten."));
+            TextView badge = createChip(semesterNames[i], COLOR_PRIMARY);
+            top.addView(badge);
 
-        LinearLayout statusCard = createCard();
-        LinearLayout statusHeader = new LinearLayout(this);
-        statusHeader.setOrientation(LinearLayout.HORIZONTAL);
-        statusHeader.setGravity(Gravity.CENTER_VERTICAL);
-        statusHeader.addView(createCircleBadge("✓", SUCCESS_SOFT, SUCCESS));
-        TextView statusTitle = createText("Sicherer aktueller Stand", 18, true);
-        statusTitle.setPadding(dp(12), 0, 0, 0);
-        statusHeader.addView(statusTitle);
-        statusCard.addView(statusHeader);
+            TextView semesterTitle = createText("  Kurshalbjahr " + (i + 1), 18, true);
+            top.addView(semesterTitle, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
-        String[] securityPoints = {
-                "Keine Standort-, Kamera- oder Mikrofonberechtigungen",
-                "Keine Werbung und kein Tracking",
-                "Keine Internetberechtigung",
-                "HTTP-Verbindungen technisch gesperrt",
-                "Cloud-Backups deaktiviert",
-                "Aktuell kein Benutzerkonto"
-        };
-        for (String point : securityPoints) {
-            TextView line = createText("•  " + point, 14, false);
-            line.setTextColor(MUTED);
-            line.setPadding(0, dp(6), 0, dp(2));
-            statusCard.addView(line);
+            Button open = createSecondaryButton("Öffnen");
+            open.setOnClickListener(v -> showHalfYearPage(index));
+            top.addView(open, new LinearLayout.LayoutParams(dp(92), dp(44)));
+            semesterCard.addView(top);
+
+            String preview = buildHalfYearPreview(i);
+            TextView previewView = createText(preview, 14, false);
+            previewView.setTextColor(COLOR_MUTED);
+            semesterCard.addView(previewView);
+
+            int filled = countFilledHalfyear(i);
+            if (filled > 0) {
+                TextView info = createText(
+                        filled + " Ergebnisse  •  Ø " + calculateHalfyearAverage(i) + " Punkte",
+                        13,
+                        true
+                );
+                info.setTextColor(COLOR_PRIMARY_DARK);
+                semesterCard.addView(info);
+            }
+
+            semesterCard.setOnClickListener(v -> showHalfYearPage(index));
+            page.addView(semesterCard);
         }
-        page.addView(statusCard);
 
-        LinearLayout controlCard = createCard();
-        controlCard.addView(createText("Deine Kontrolle", 18, true));
-        TextView controlInfo = createText(
-                "Du kannst alle aktuell angelegten Fächer und Noteneinträge dieser Sitzung vollständig löschen.",
+        TextView examTitle = createSectionTitle("Abiturprüfungen");
+        page.addView(examTitle);
+
+        LinearLayout examCard = createTintedCard(Color.rgb(236, 247, 242), COLOR_GREEN);
+        examCard.addView(createText("5 Prüfungselemente", 20, true));
+        examCard.addView(createText(
+                "P1–P4 schriftlich, P5 mündlich. Jede Prüfungsleistung wird in Block II vierfach gewertet.",
                 14,
                 false
-        );
-        controlInfo.setTextColor(MUTED);
-        controlInfo.setPadding(0, dp(4), 0, dp(12));
-        controlCard.addView(controlInfo);
+        ));
 
-        Button clearButton = createDangerButton("Alle lokalen Daten löschen");
-        clearButton.setFilterTouchesWhenObscured(true);
-        clearButton.setOnClickListener(v -> new AlertDialog.Builder(this)
-                .setTitle("Alle Daten löschen?")
-                .setMessage("Alle aktuell angelegten Fächer und Noteneinträge werden aus dieser Sitzung entfernt.")
-                .setNegativeButton("Abbrechen", null)
-                .setPositiveButton("Löschen", (dialog, which) -> {
-                    subjectsByClass.clear();
-                    writtenGradesBySubject.clear();
-                    oralGradesBySubject.clear();
-                    Toast.makeText(this, "Lokale Sitzungsdaten gelöscht.", Toast.LENGTH_SHORT).show();
-                    showPrivacyPage();
-                })
-                .show());
-        controlCard.addView(clearButton, fullWidthHeight(48));
-        page.addView(controlCard);
+        String examPreview = buildExamPreview();
+        if (!examPreview.isEmpty()) {
+            TextView examPreviewView = createText(examPreview, 14, true);
+            examPreviewView.setTextColor(COLOR_GREEN);
+            examCard.addView(examPreviewView);
+        }
+
+        Button examButton = createGreenButton("Abiturprüfungen eintragen  →");
+        examButton.setOnClickListener(v -> showAbiturExamPage());
+        examCard.addView(examButton);
+        page.addView(examCard);
+
+        TextView subjectsTitle = createSectionTitle("Oberstufenfächer");
+        page.addView(subjectsTitle);
+
+        LinearLayout subjectCard = createCard();
+        subjectCard.addView(createText(
+                upperSubjects.isEmpty()
+                        ? "Noch keine Oberstufenfächer angelegt."
+                        : String.join("  •  ", upperSubjects),
+                14,
+                false
+        ));
+
+        EditText upperSubjectInput = new EditText(this);
+        upperSubjectInput.setHint("Weiteres Fach hinzufügen");
+        upperSubjectInput.setSingleLine(true);
+        upperSubjectInput.setFilterTouchesWhenObscured(true);
+        upperSubjectInput.setBackground(createRoundedBackground(Color.rgb(248, 250, 254), dp(14), dp(1), COLOR_BORDER));
+        upperSubjectInput.setPadding(dp(12), dp(10), dp(12), dp(10));
+        subjectCard.addView(upperSubjectInput, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(52)
+        ));
+
+        Button addUpperSubject = createAccentButton("+ Fach für Oberstufe");
+        addUpperSubject.setOnClickListener(v -> {
+            String name = upperSubjectInput.getText().toString().trim();
+            if (name.isEmpty()) {
+                return;
+            }
+            addUpperSubject(name);
+            upperSubjectInput.setText("");
+            showUpperSecondaryPage();
+        });
+        subjectCard.addView(addUpperSubject);
+        page.addView(subjectCard);
+
+        LinearLayout infoCard = createTintedCard(Color.rgb(255, 247, 232), Color.rgb(171, 111, 19));
+        infoCard.addView(createText("So rechnet Sachsen-Anhalt", 18, true));
+        infoCard.addView(createText(
+                "Block I: 36–40 einzubringende Kurshalbjahresergebnisse; Berechnung (P/A) × 40, maximal 600 Punkte.\n\n" +
+                        "Block II: fünf Abitur-Prüfungselemente, jeweils vierfach gewertet, maximal 300 Punkte.\n\n" +
+                        "Gesamt: Block I + Block II = maximal 900 Punkte. Die App zeigt eine Prognose; die endgültige Einbringung wird von der Schule geprüft.",
+                14,
+                false
+        ));
+        page.addView(infoCard);
 
         showInContent(wrapInScrollView(page));
     }
 
+    private LinearLayout createUpperSummaryCard(UpperSummary summary) {
+        LinearLayout card = createTintedCard(Color.rgb(232, 237, 255), COLOR_PRIMARY);
+
+        TextView title = createText("Deine Abi-Prognose", 21, true);
+        card.addView(title);
+
+        LinearLayout statRow = new LinearLayout(this);
+        statRow.setOrientation(LinearLayout.HORIZONTAL);
+
+        statRow.addView(createStatBox(
+                "BLOCK I",
+                summary.blockI >= 0 ? summary.blockI + " / 600" : "–",
+                COLOR_PRIMARY
+        ), weightedCardParams());
+
+        statRow.addView(createStatBox(
+                "BLOCK II",
+                summary.blockIIComplete ? summary.blockII + " / 300" : summary.examCount + " / 5",
+                COLOR_GREEN
+        ), weightedCardParams());
+
+        card.addView(statRow);
+
+        TextView total;
+        if (summary.isCompleteForGrade()) {
+            total = createText(
+                    "Gesamt: " + summary.total + " / 900  •  voraussichtliche Abiturnote " + getAbiGrade(summary.total),
+                    18,
+                    true
+            );
+            total.setTextColor(COLOR_PRIMARY_DARK);
+        } else {
+            total = createText(
+                    "Abiturnote erscheint, sobald mindestens 36 Ergebnisse für Block I ausgewählt und alle 5 Prüfungen eingetragen sind.",
+                    14,
+                    false
+            );
+            total.setTextColor(COLOR_MUTED);
+        }
+        card.addView(total);
+
+        String warning = buildUpperWarning(summary);
+        if (!warning.isEmpty()) {
+            TextView warningView = createText(warning, 13, true);
+            warningView.setTextColor(COLOR_DANGER);
+            warningView.setPadding(0, dp(8), 0, 0);
+            card.addView(warningView);
+        }
+
+        return card;
+    }
+
+    private LinearLayout createStatBox(String label, String value, int accent) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(12), dp(12), dp(12), dp(12));
+        box.setBackground(createRoundedBackground(Color.WHITE, dp(16), 0, Color.TRANSPARENT));
+
+        TextView labelView = createText(label, 11, true);
+        labelView.setTextColor(COLOR_MUTED);
+        labelView.setLetterSpacing(0.08f);
+        box.addView(labelView);
+
+        TextView valueView = createText(value, 20, true);
+        valueView.setTextColor(accent);
+        box.addView(valueView);
+
+        return box;
+    }
+
+    private void showHalfYearPage(int halfyearIndex) {
+        syncUpperSubjectsFromClasses();
+
+        String[] semesterNames = {"11/1", "11/2", "12/1", "12/2"};
+
+        LinearLayout page = createVerticalPage();
+
+        Button backButton = createBackButton("←  Zurück zur Oberstufe");
+        backButton.setOnClickListener(v -> showUpperSecondaryPage());
+        page.addView(backButton);
+
+        page.addView(createTitle("Kurshalbjahr " + semesterNames[halfyearIndex]));
+        page.addView(createSubtitle(
+                "Trage hier die Kurshalbjahresergebnisse ein, die auf deinem Zeugnis stehen."
+        ));
+
+        if (upperSubjects.isEmpty()) {
+            LinearLayout empty = createCard();
+            empty.addView(createText("Noch keine Fächer", 18, true));
+            empty.addView(createText(
+                    "Füge auf der Oberstufen-Seite zuerst deine Fächer hinzu.",
+                    14,
+                    false
+            ));
+            page.addView(empty);
+        } else {
+            for (String subject : upperSubjects) {
+                LinearLayout card = createCard();
+
+                LinearLayout heading = new LinearLayout(this);
+                heading.setOrientation(LinearLayout.HORIZONTAL);
+                heading.setGravity(Gravity.CENTER_VERTICAL);
+
+                TextView subjectName = createText(subject, 18, true);
+                heading.addView(subjectName, new LinearLayout.LayoutParams(
+                        0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        1f
+                ));
+
+                int current = getHalfyearPoints(subject)[halfyearIndex];
+                TextView pointsChip = createChip(current >= 0 ? current + " P" : "–", current >= 0 ? gradeAccent(current) : COLOR_MUTED);
+                heading.addView(pointsChip);
+
+                card.addView(heading);
+
+                LinearLayout editRow = new LinearLayout(this);
+                editRow.setOrientation(LinearLayout.HORIZONTAL);
+                editRow.setGravity(Gravity.CENTER_VERTICAL);
+
+                Spinner pointsSpinner = new Spinner(this);
+                ArrayList<String> values = new ArrayList<>();
+                values.add("Noch nicht eingetragen");
+                for (int points = 15; points >= 0; points--) {
+                    values.add(points + (points == 1 ? " Punkt" : " Punkte"));
+                }
+
+                ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                        this,
+                        android.R.layout.simple_spinner_dropdown_item,
+                        values
+                );
+                pointsSpinner.setAdapter(adapter);
+                pointsSpinner.setSelection(current < 0 ? 0 : 16 - current);
+
+                editRow.addView(pointsSpinner, new LinearLayout.LayoutParams(
+                        0,
+                        dp(52),
+                        1f
+                ));
+
+                card.addView(editRow);
+
+                CheckBox include = new CheckBox(this);
+                include.setText("In Block I einbringen");
+                include.setTextColor(COLOR_TEXT);
+                include.setChecked(getIncludedFlags(subject)[halfyearIndex]);
+                include.setEnabled(current >= 0);
+                card.addView(include);
+
+                pointsSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                    private boolean firstCall = true;
+
+                    @Override
+                    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                        if (firstCall) {
+                            firstCall = false;
+                            return;
+                        }
+
+                        if (position == 0) {
+                            getHalfyearPoints(subject)[halfyearIndex] = -1;
+                            getIncludedFlags(subject)[halfyearIndex] = false;
+                            include.setChecked(false);
+                            include.setEnabled(false);
+                        } else {
+                            int points = 16 - position;
+                            boolean wasEmpty = getHalfyearPoints(subject)[halfyearIndex] < 0;
+                            getHalfyearPoints(subject)[halfyearIndex] = points;
+                            include.setEnabled(true);
+                            if (wasEmpty) {
+                                getIncludedFlags(subject)[halfyearIndex] = true;
+                                include.setChecked(true);
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onNothingSelected(AdapterView<?> parent) {
+                    }
+                });
+
+                include.setOnCheckedChangeListener((buttonView, isChecked) ->
+                        getIncludedFlags(subject)[halfyearIndex] = isChecked
+                );
+
+                page.addView(card);
+            }
+        }
+
+        LinearLayout bottomInfo = createTintedCard(Color.rgb(239, 245, 255), COLOR_PRIMARY);
+        bottomInfo.addView(createText(
+                "Erfasst: " + countFilledHalfyear(halfyearIndex) + " Ergebnisse  •  Ø " +
+                        (countFilledHalfyear(halfyearIndex) == 0 ? "–" : calculateHalfyearAverage(halfyearIndex) + " Punkte"),
+                15,
+                true
+        ));
+        bottomInfo.addView(createText(
+                "Mit „In Block I einbringen“ legst du fest, welche Halbjahresleistung in die Abi-Prognose eingeht.",
+                13,
+                false
+        ));
+        page.addView(bottomInfo);
+
+        showInContent(wrapInScrollView(page));
+    }
+
+    private void showAbiturExamPage() {
+        syncUpperSubjectsFromClasses();
+
+        LinearLayout page = createVerticalPage();
+
+        Button backButton = createBackButton("←  Zurück zur Oberstufe");
+        backButton.setOnClickListener(v -> showUpperSecondaryPage());
+        page.addView(backButton);
+
+        page.addView(createTitle("Abiturprüfungen"));
+        page.addView(createSubtitle("Block II · fünf Prüfungselemente"));
+
+        if (upperSubjects.isEmpty()) {
+            LinearLayout warning = createTintedCard(Color.rgb(255, 247, 232), Color.rgb(171, 111, 19));
+            warning.addView(createText("Lege zuerst Oberstufenfächer an.", 15, true));
+            page.addView(warning);
+        }
+
+        String[] labels = {
+                "P1 · schriftlich · erhöhtes Niveau",
+                "P2 · schriftlich · erhöhtes Niveau",
+                "P3 · schriftlich · grundlegendes Niveau",
+                "P4 · schriftlich · grundlegendes Niveau",
+                "P5 · mündlich"
+        };
+
+        for (int i = 0; i < 5; i++) {
+            final int examIndex = i;
+
+            LinearLayout card = createCard();
+            card.addView(createText(labels[i], 17, true));
+
+            TextView hint = createText("Prüfungsfach", 12, true);
+            hint.setTextColor(COLOR_MUTED);
+            card.addView(hint);
+
+            Spinner subjectSpinner = new Spinner(this);
+            ArrayList<String> subjectChoices = new ArrayList<>();
+            subjectChoices.add("Fach wählen");
+            subjectChoices.addAll(upperSubjects);
+
+            ArrayAdapter<String> subjectAdapter = new ArrayAdapter<>(
+                    this,
+                    android.R.layout.simple_spinner_dropdown_item,
+                    subjectChoices
+            );
+            subjectSpinner.setAdapter(subjectAdapter);
+
+            int subjectPosition = 0;
+            if (!examSubjects[i].isEmpty()) {
+                for (int p = 1; p < subjectChoices.size(); p++) {
+                    if (subjectChoices.get(p).equalsIgnoreCase(examSubjects[i])) {
+                        subjectPosition = p;
+                        break;
+                    }
+                }
+            }
+            subjectSpinner.setSelection(subjectPosition);
+            card.addView(subjectSpinner);
+
+            TextView pointsLabel = createText("Prüfungsergebnis", 12, true);
+            pointsLabel.setTextColor(COLOR_MUTED);
+            card.addView(pointsLabel);
+
+            Spinner pointsSpinner = new Spinner(this);
+            ArrayList<String> pointChoices = new ArrayList<>();
+            pointChoices.add("Punkte wählen");
+            for (int points = 15; points >= 0; points--) {
+                pointChoices.add(points + (points == 1 ? " Punkt" : " Punkte"));
+            }
+
+            ArrayAdapter<String> pointsAdapter = new ArrayAdapter<>(
+                    this,
+                    android.R.layout.simple_spinner_dropdown_item,
+                    pointChoices
+            );
+            pointsSpinner.setAdapter(pointsAdapter);
+            pointsSpinner.setSelection(examPoints[i] < 0 ? 0 : 16 - examPoints[i]);
+            card.addView(pointsSpinner);
+
+            subjectSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                private boolean firstCall = true;
+
+                @Override
+                public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                    if (firstCall) {
+                        firstCall = false;
+                        return;
+                    }
+                    examSubjects[examIndex] = position == 0 ? "" : subjectChoices.get(position);
+                }
+
+                @Override
+                public void onNothingSelected(AdapterView<?> parent) {
+                }
+            });
+
+            pointsSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                private boolean firstCall = true;
+
+                @Override
+                public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                    if (firstCall) {
+                        firstCall = false;
+                        return;
+                    }
+                    examPoints[examIndex] = position == 0 ? -1 : 16 - position;
+                }
+
+                @Override
+                public void onNothingSelected(AdapterView<?> parent) {
+                }
+            });
+
+            page.addView(card);
+        }
+
+        LinearLayout weightingCard = createTintedCard(Color.rgb(242, 236, 255), COLOR_ACCENT);
+        weightingCard.addView(createText("Optionale Doppelgewichtung in Block I", 17, true));
+        weightingCard.addView(createText(
+                "Nach der Oberstufenverordnung können die Kurshalbjahresergebnisse der ersten beiden Prüfungsfächer in Block I doppelt gewertet werden.",
+                13,
+                false
+        ));
+
+        CheckBox doubleWeight = new CheckBox(this);
+        doubleWeight.setText("P1 und P2 in Block I doppelt gewichten");
+        doubleWeight.setTextColor(COLOR_TEXT);
+        doubleWeight.setChecked(doubleWeightP1P2);
+        doubleWeight.setOnCheckedChangeListener((buttonView, isChecked) -> doubleWeightP1P2 = isChecked);
+        weightingCard.addView(doubleWeight);
+        page.addView(weightingCard);
+
+        Button recalculateButton = createGreenButton("Ergebnis aktualisieren");
+        recalculateButton.setOnClickListener(v -> showUpperSecondaryPage());
+        page.addView(recalculateButton);
+
+        showInContent(wrapInScrollView(page));
+    }
+
+    private UpperSummary calculateUpperSummary() {
+        UpperSummary result = new UpperSummary();
+
+        double pointSum = 0;
+        int weightedA = 0;
+        int rawIncluded = 0;
+        int lowWeighted = 0;
+        boolean hasZero = false;
+        int filledHalfyears = 0;
+
+        for (String subject : upperSubjects) {
+            int[] points = getHalfyearPoints(subject);
+            boolean[] included = getIncludedFlags(subject);
+
+            boolean doubleSubject = doubleWeightP1P2 &&
+                    (matchesExamSubject(subject, 0) || matchesExamSubject(subject, 1));
+
+            int weight = doubleSubject ? 2 : 1;
+
+            for (int h = 0; h < 4; h++) {
+                if (points[h] >= 0) {
+                    filledHalfyears++;
+                }
+
+                if (points[h] >= 0 && included[h]) {
+                    rawIncluded++;
+                    pointSum += points[h] * weight;
+                    weightedA += weight;
+
+                    if (points[h] < 5) {
+                        lowWeighted += weight;
+                    }
+                    if (points[h] == 0) {
+                        hasZero = true;
+                    }
+                }
+            }
+        }
+
+        result.filledHalfyears = filledHalfyears;
+        result.rawIncluded = rawIncluded;
+        result.weightedA = weightedA;
+        result.lowWeighted = lowWeighted;
+        result.hasZero = hasZero;
+
+        if (weightedA > 0) {
+            result.blockI = (int) Math.floor(((pointSum / weightedA) * 40.0) + 0.5);
+        }
+
+        int examCount = 0;
+        int blockII = 0;
+        int examsAtLeastFive = 0;
+
+        for (int i = 0; i < examPoints.length; i++) {
+            if (examPoints[i] >= 0) {
+                examCount++;
+                blockII += examPoints[i] * 4;
+                if (examPoints[i] >= 5) {
+                    examsAtLeastFive++;
+                }
+            }
+        }
+
+        result.examCount = examCount;
+        result.blockII = blockII;
+        result.blockIIComplete = examCount == 5;
+        result.examsAtLeastFive = examsAtLeastFive;
+        result.highLevelAtLeastFive =
+                (examPoints[0] >= 5) || (examPoints[1] >= 5);
+
+        result.allWrittenAtLeastOne =
+                examPoints[0] > 0 &&
+                examPoints[1] > 0 &&
+                examPoints[2] > 0 &&
+                examPoints[3] > 0;
+
+        if (result.blockI >= 0 && result.blockIIComplete) {
+            result.total = result.blockI + result.blockII;
+        }
+
+        return result;
+    }
+
+    private boolean matchesExamSubject(String subject, int examIndex) {
+        return examSubjects[examIndex] != null &&
+                !examSubjects[examIndex].isEmpty() &&
+                subject.equalsIgnoreCase(examSubjects[examIndex]);
+    }
+
+    private String buildUpperWarning(UpperSummary summary) {
+        ArrayList<String> warnings = new ArrayList<>();
+
+        if (summary.rawIncluded > 0 && summary.rawIncluded < 36) {
+            warnings.add("Für Block I sind mindestens 36 Kurshalbjahresergebnisse einzubringen.");
+        }
+        if (summary.rawIncluded > 40) {
+            warnings.add("Es sind mehr als 40 Kurshalbjahresergebnisse ausgewählt.");
+        }
+        if (summary.hasZero) {
+            warnings.add("0 Punkte dürfen nicht in Block I eingebracht werden.");
+        }
+        if (summary.weightedA > 0 && summary.lowWeighted > Math.floor(summary.weightedA * 0.20)) {
+            warnings.add("Mehr als 20 % der berücksichtigten Ergebnisse liegen unter 5 Punkten.");
+        }
+        if (summary.rawIncluded >= 36 && summary.blockI >= 0 && summary.blockI < 200) {
+            warnings.add("Block I liegt unter den erforderlichen 200 Punkten.");
+        }
+
+        if (summary.blockIIComplete) {
+            if (summary.blockII < 100) {
+                warnings.add("Block II liegt unter den erforderlichen 100 Punkten.");
+            }
+            if (summary.examsAtLeastFive < 3 || !summary.highLevelAtLeastFive) {
+                warnings.add("Mindestens drei Prüfungselemente müssen 5 Punkte oder mehr erreichen; darunter mindestens P1 oder P2.");
+            }
+            if (!summary.allWrittenAtLeastOne) {
+                warnings.add("Bei den vier schriftlichen Prüfungselementen muss jeweils mindestens 1 Punkt erreicht werden.");
+            }
+        }
+
+        return String.join("\n", warnings);
+    }
+
+    private String buildHalfYearPreview(int halfyearIndex) {
+        ArrayList<String> parts = new ArrayList<>();
+
+        for (String subject : upperSubjects) {
+            int value = getHalfyearPoints(subject)[halfyearIndex];
+            if (value >= 0) {
+                parts.add(subject + " " + value + "P");
+                if (parts.size() == 4) {
+                    break;
+                }
+            }
+        }
+
+        if (parts.isEmpty()) {
+            return "Noch keine Kurshalbjahresergebnisse eingetragen.";
+        }
+
+        int totalFilled = countFilledHalfyear(halfyearIndex);
+        String preview = String.join("  •  ", parts);
+
+        if (totalFilled > parts.size()) {
+            preview += "  •  +" + (totalFilled - parts.size()) + " weitere";
+        }
+
+        return preview;
+    }
+
+    private int countFilledHalfyear(int halfyearIndex) {
+        int count = 0;
+        for (String subject : upperSubjects) {
+            if (getHalfyearPoints(subject)[halfyearIndex] >= 0) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private String calculateHalfyearAverage(int halfyearIndex) {
+        double sum = 0;
+        int count = 0;
+
+        for (String subject : upperSubjects) {
+            int value = getHalfyearPoints(subject)[halfyearIndex];
+            if (value >= 0) {
+                sum += value;
+                count++;
+            }
+        }
+
+        if (count == 0) {
+            return "–";
+        }
+
+        return String.format(Locale.GERMANY, "%.2f", sum / count);
+    }
+
+    private String buildExamPreview() {
+        ArrayList<String> parts = new ArrayList<>();
+
+        for (int i = 0; i < 5; i++) {
+            if (examPoints[i] >= 0) {
+                String subject = examSubjects[i].isEmpty() ? "P" + (i + 1) : examSubjects[i];
+                parts.add(subject + " " + examPoints[i] + "P");
+            }
+        }
+
+        return String.join("  •  ", parts);
+    }
+
+    private String getAbiGrade(int totalPoints) {
+        if (totalPoints < 300) {
+            return "nicht bestanden";
+        }
+        if (totalPoints >= 823) {
+            return "1,0";
+        }
+
+        double grade = (17.0 / 3.0) - (totalPoints / 180.0);
+        grade = Math.floor((grade + 0.000001) * 10.0) / 10.0;
+        grade = Math.max(1.0, Math.min(4.0, grade));
+
+        return String.format(Locale.GERMANY, "%.1f", grade);
+    }
+
+    private void syncUpperSubjectsFromClasses() {
+        for (int classLevel = 11; classLevel <= 12; classLevel++) {
+            for (String subject : getSubjectsForClass(classLevel)) {
+                addUpperSubject(subject);
+            }
+        }
+    }
+
+    private void addUpperSubject(String subject) {
+        String cleaned = subject.trim();
+        if (cleaned.isEmpty()) {
+            return;
+        }
+
+        for (String existing : upperSubjects) {
+            if (existing.equalsIgnoreCase(cleaned)) {
+                return;
+            }
+        }
+
+        upperSubjects.add(cleaned);
+        getHalfyearPoints(cleaned);
+        getIncludedFlags(cleaned);
+    }
+
+    private void removeUpperSubjectIfUnused(String subject) {
+        boolean stillUsed = false;
+
+        for (int classLevel = 11; classLevel <= 12; classLevel++) {
+            for (String existing : getSubjectsForClass(classLevel)) {
+                if (existing.equalsIgnoreCase(subject)) {
+                    stillUsed = true;
+                    break;
+                }
+            }
+        }
+
+        if (!stillUsed) {
+            removeUpperSubject(subject);
+        }
+    }
+
+    private void removeUpperSubject(String subject) {
+        String found = null;
+        for (String existing : upperSubjects) {
+            if (existing.equalsIgnoreCase(subject)) {
+                found = existing;
+                break;
+            }
+        }
+
+        if (found != null) {
+            upperSubjects.remove(found);
+            String key = normalizeSubjectKey(found);
+            upperHalfyearPoints.remove(key);
+            upperIncluded.remove(key);
+
+            for (int i = 0; i < examSubjects.length; i++) {
+                if (examSubjects[i].equalsIgnoreCase(found)) {
+                    examSubjects[i] = "";
+                }
+            }
+        }
+    }
+
+    private int[] getHalfyearPoints(String subject) {
+        String key = normalizeSubjectKey(subject);
+
+        if (!upperHalfyearPoints.containsKey(key)) {
+            upperHalfyearPoints.put(key, new int[]{-1, -1, -1, -1});
+        }
+
+        return upperHalfyearPoints.get(key);
+    }
+
+    private boolean[] getIncludedFlags(String subject) {
+        String key = normalizeSubjectKey(subject);
+
+        if (!upperIncluded.containsKey(key)) {
+            upperIncluded.put(key, new boolean[]{true, true, true, true});
+        }
+
+        return upperIncluded.get(key);
+    }
+
+    private String normalizeSubjectKey(String subject) {
+        return subject.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static class UpperSummary {
+        int blockI = -1;
+        int blockII = 0;
+        int total = -1;
+        int filledHalfyears = 0;
+        int rawIncluded = 0;
+        int weightedA = 0;
+        int lowWeighted = 0;
+        boolean hasZero = false;
+
+        int examCount = 0;
+        boolean blockIIComplete = false;
+        int examsAtLeastFive = 0;
+        boolean highLevelAtLeastFive = false;
+        boolean allWrittenAtLeastOne = false;
+
+        boolean isCompleteForGrade() {
+            return rawIncluded >= 36 &&
+                    rawIncluded <= 40 &&
+                    blockI >= 0 &&
+                    blockIIComplete &&
+                    total >= 0;
+        }
+    }
+
     // --------------------------------------------------
-    // DATEN / BERECHNUNGEN
+    // NOTEN-HELFER
     // --------------------------------------------------
 
     private ArrayList<Integer> getPossibleGradeValues() {
@@ -803,32 +1366,125 @@ public class MainActivity extends Activity {
         double average = sum / entries.size();
 
         if (selectedClass <= 10) {
-            return String.format(Locale.GERMANY, "%.2f", average);
+            return String.format(Locale.GERMANY, "Ø %.2f", average);
         }
-        return String.format(Locale.GERMANY, "%.2f Punkte", average);
-    }
-
-    private int countGradeEntriesForClass(int classLevel) {
-        int total = 0;
-        for (String subject : getSubjectsForClass(classLevel)) {
-            total += getGradeEntries(classLevel, subject, true).size();
-            total += getGradeEntries(classLevel, subject, false).size();
-        }
-        return total;
+        return String.format(Locale.GERMANY, "Ø %.2f P", average);
     }
 
     private ArrayList<Integer> getGradeEntries(int classLevel, String subject, boolean written) {
         String key = createGradeKey(classLevel, subject);
         Map<String, ArrayList<Integer>> source = written ? writtenGradesBySubject : oralGradesBySubject;
+
         if (!source.containsKey(key)) {
             source.put(key, new ArrayList<>());
         }
+
         return source.get(key);
     }
 
     private String createGradeKey(int classLevel, String subject) {
         return classLevel + "::" + subject.trim().toLowerCase(Locale.ROOT);
     }
+
+    private int gradeAccent(int value) {
+        if (selectedClass <= 10) {
+            if (value <= 2) return COLOR_GREEN;
+            if (value <= 4) return Color.rgb(203, 132, 25);
+            return COLOR_DANGER;
+        }
+
+        if (value >= 10) return COLOR_GREEN;
+        if (value >= 5) return Color.rgb(203, 132, 25);
+        return COLOR_DANGER;
+    }
+
+    // --------------------------------------------------
+    // FINANZEN / DATENSCHUTZ
+    // --------------------------------------------------
+
+    private void showFinancePage() {
+        LinearLayout page = createVerticalPage();
+
+        page.addView(createTitle("Finanzen"));
+        page.addView(createSubtitle("Dieser Bereich wird als Nächstes aufgebaut."));
+
+        LinearLayout card = createTintedCard(Color.rgb(236, 247, 242), COLOR_GREEN);
+        card.addView(createText("Geplant", 20, true));
+        card.addView(createText(
+                "• Einnahmen und Ausgaben\n• Tages-, Wochen- und Monatsansicht\n• Kategorien\n• Diagramme und Budgets",
+                15,
+                false
+        ));
+        page.addView(card);
+
+        showInContent(wrapInScrollView(page));
+    }
+
+    private void showPrivacyPage() {
+        LinearLayout page = createVerticalPage();
+
+        Button backButton = createBackButton("←  Zurück");
+        backButton.setOnClickListener(v -> showHomePage());
+        page.addView(backButton);
+
+        page.addView(createTitle("Datenschutz & Sicherheit"));
+        page.addView(createSubtitle("Deine Daten bleiben aktuell ausschließlich in der laufenden App-Sitzung."));
+
+        LinearLayout privacyCard = createTintedCard(Color.rgb(236, 247, 242), COLOR_GREEN);
+        privacyCard.addView(createText("Aktueller Datenschutzstatus", 19, true));
+        privacyCard.addView(createText(
+                "✓ Keine Standort-, Kamera-, Mikrofon-, Kontakt- oder Speicherberechtigungen\n" +
+                        "✓ Keine Werbung und kein Tracking\n" +
+                        "✓ Keine Internetberechtigung\n" +
+                        "✓ Unverschlüsselte HTTP-Verbindungen gesperrt\n" +
+                        "✓ Android-Cloud-Backups deaktiviert\n" +
+                        "✓ Kein Benutzerkonto",
+                14,
+                false
+        ));
+        page.addView(privacyCard);
+
+        LinearLayout controlCard = createCard();
+        controlCard.addView(createText("Deine Kontrolle", 19, true));
+        controlCard.addView(createText(
+                "Du kannst alle aktuell angelegten Fächer, Noten, Kurshalbjahresergebnisse und Abiturprüfungen löschen.",
+                14,
+                false
+        ));
+
+        Button clearButton = createDangerButton("Alle lokalen Sitzungsdaten löschen");
+        clearButton.setFilterTouchesWhenObscured(true);
+        clearButton.setOnClickListener(v -> new AlertDialog.Builder(this)
+                .setTitle("Daten löschen?")
+                .setMessage("Alle aktuell angelegten Fächer, Noten und Oberstufendaten werden aus dieser Sitzung entfernt.")
+                .setNegativeButton("Abbrechen", null)
+                .setPositiveButton("Löschen", (dialog, which) -> {
+                    subjectsByClass.clear();
+                    writtenGradesBySubject.clear();
+                    oralGradesBySubject.clear();
+
+                    upperSubjects.clear();
+                    upperHalfyearPoints.clear();
+                    upperIncluded.clear();
+
+                    Arrays.fill(examSubjects, "");
+                    Arrays.fill(examPoints, -1);
+                    doubleWeightP1P2 = false;
+
+                    Toast.makeText(this, "Lokale Sitzungsdaten gelöscht.", Toast.LENGTH_SHORT).show();
+                    showPrivacyPage();
+                })
+                .show());
+
+        controlCard.addView(clearButton);
+        page.addView(controlCard);
+
+        showInContent(wrapInScrollView(page));
+    }
+
+    // --------------------------------------------------
+    // DATEN
+    // --------------------------------------------------
 
     private ArrayList<String> getSubjectsForClass(int classLevel) {
         if (!subjectsByClass.containsKey(classLevel)) {
@@ -838,66 +1494,50 @@ public class MainActivity extends Activity {
     }
 
     // --------------------------------------------------
-    // UI-HILFSMETHODEN
+    // UI-HELFER
     // --------------------------------------------------
 
     private LinearLayout createVerticalPage() {
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setPadding(dp(18), dp(22), dp(18), dp(24));
-        page.setBackgroundColor(BG);
+        page.setPadding(dp(20), dp(22), dp(20), dp(28));
+        page.setBackgroundColor(COLOR_BACKGROUND);
         return page;
     }
 
-    private TextView createEyebrow(String text) {
-        TextView eyebrow = createText(text, 12, true);
-        eyebrow.setTextColor(PRIMARY);
-        eyebrow.setLetterSpacing(0.09f);
-        eyebrow.setPadding(0, 0, 0, dp(2));
-        return eyebrow;
+    private TextView createTitle(String text) {
+        TextView title = createText(text, 30, true);
+        title.setTextColor(COLOR_TEXT);
+        title.setPadding(0, dp(2), 0, dp(6));
+        return title;
     }
 
-    private TextView createTitle(String text) {
-        TextView title = createText(text, 31, true);
-        title.setTextColor(TEXT);
-        title.setPadding(0, 0, 0, dp(4));
+    private TextView createSectionTitle(String text) {
+        TextView title = createText(text, 20, true);
+        title.setTextColor(COLOR_TEXT);
+        title.setPadding(0, dp(16), 0, dp(6));
         return title;
     }
 
     private TextView createSubtitle(String text) {
         TextView subtitle = createText(text, 15, false);
-        subtitle.setTextColor(MUTED);
-        subtitle.setPadding(0, 0, 0, dp(14));
+        subtitle.setTextColor(COLOR_MUTED);
+        subtitle.setPadding(0, 0, 0, dp(12));
         return subtitle;
-    }
-
-    private TextView createLabel(String text) {
-        TextView label = createText(text, 14, true);
-        label.setTextColor(TEXT);
-        label.setPadding(0, 0, 0, dp(8));
-        return label;
-    }
-
-    private LinearLayout createSectionHeading(String title, String subtitle) {
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding(0, dp(10), 0, dp(8));
-        box.addView(createText(title, 19, true));
-        TextView subtitleText = createText(subtitle, 13, false);
-        subtitleText.setTextColor(MUTED);
-        box.addView(subtitleText);
-        return box;
     }
 
     private TextView createText(String text, float size, boolean bold) {
         TextView textView = new TextView(this);
         textView.setText(text);
         textView.setTextSize(size);
-        textView.setTextColor(TEXT);
+        textView.setTextColor(COLOR_TEXT);
+        textView.setLineSpacing(0, 1.12f);
+
         if (bold) {
             textView.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         }
-        textView.setPadding(0, dp(2), 0, dp(2));
+
+        textView.setPadding(0, dp(4), 0, dp(4));
         return textView;
     }
 
@@ -905,44 +1545,65 @@ public class MainActivity extends Activity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(16), dp(16), dp(16), dp(16));
-        card.setBackground(roundedBackground(CARD, 18, 1, BORDER));
+        card.setBackground(createRoundedBackground(Color.WHITE, dp(20), dp(1), COLOR_BORDER));
         card.setElevation(dp(2));
 
-        LinearLayout.LayoutParams params = fullWidthWrap();
-        params.setMargins(0, dp(6), 0, dp(8));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        params.setMargins(0, dp(7), 0, dp(7));
         card.setLayoutParams(params);
+
         return card;
     }
 
-    private TextView createCircleBadge(String text, int backgroundColor, int textColor) {
-        TextView badge = createText(text, 16, true);
-        badge.setGravity(Gravity.CENTER);
-        badge.setTextColor(textColor);
-        badge.setBackground(roundedBackground(backgroundColor, 100, 0, Color.TRANSPARENT));
-        badge.setMinWidth(dp(42));
-        badge.setMinHeight(dp(42));
-        return badge;
+    private LinearLayout createTintedCard(int backgroundColor, int strokeColor) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(18), dp(18), dp(18), dp(18));
+        card.setBackground(createRoundedBackground(backgroundColor, dp(22), dp(1), lighten(strokeColor)));
+        card.setElevation(dp(1));
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        params.setMargins(0, dp(7), 0, dp(7));
+        card.setLayoutParams(params);
+
+        return card;
     }
 
-    private TextView createPill(String text, int backgroundColor, int textColor) {
-        TextView pill = createText(text, 13, true);
-        pill.setTextColor(textColor);
-        pill.setGravity(Gravity.CENTER);
-        pill.setPadding(dp(12), dp(7), dp(12), dp(7));
-        pill.setBackground(roundedBackground(backgroundColor, 100, 0, Color.TRANSPARENT));
-        return pill;
+    private TextView createChip(String text, int accent) {
+        TextView chip = createText(text, 13, true);
+        chip.setTextColor(accent);
+        chip.setGravity(Gravity.CENTER);
+        chip.setPadding(dp(11), dp(6), dp(11), dp(6));
+        chip.setBackground(createRoundedBackground(lightBackground(accent), dp(50), 0, Color.TRANSPARENT));
+        return chip;
     }
 
     private Button createPrimaryButton(String text) {
         Button button = new Button(this);
         button.setText(text);
         button.setAllCaps(false);
+        button.setTextColor(Color.WHITE);
         button.setTextSize(14);
         button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        button.setTextColor(Color.WHITE);
-        button.setBackground(roundedBackground(PRIMARY, 14, 0, Color.TRANSPARENT));
-        button.setPadding(dp(12), 0, dp(12), 0);
-        button.setElevation(dp(2));
+        button.setBackground(createRoundedBackground(COLOR_PRIMARY, dp(15), 0, Color.TRANSPARENT));
+        return button;
+    }
+
+    private Button createAccentButton(String text) {
+        Button button = createPrimaryButton(text);
+        button.setBackground(createRoundedBackground(COLOR_ACCENT, dp(15), 0, Color.TRANSPARENT));
+        return button;
+    }
+
+    private Button createGreenButton(String text) {
+        Button button = createPrimaryButton(text);
+        button.setBackground(createRoundedBackground(COLOR_GREEN, dp(15), 0, Color.TRANSPARENT));
         return button;
     }
 
@@ -950,11 +1611,10 @@ public class MainActivity extends Activity {
         Button button = new Button(this);
         button.setText(text);
         button.setAllCaps(false);
-        button.setTextSize(14);
+        button.setTextColor(COLOR_PRIMARY_DARK);
+        button.setTextSize(13);
         button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        button.setTextColor(PRIMARY);
-        button.setBackground(roundedBackground(PRIMARY_SOFT, 14, 0, Color.TRANSPARENT));
-        button.setPadding(dp(10), 0, dp(10), 0);
+        button.setBackground(createRoundedBackground(Color.rgb(238, 242, 252), dp(14), dp(1), Color.rgb(205, 214, 237)));
         return button;
     }
 
@@ -962,54 +1622,77 @@ public class MainActivity extends Activity {
         Button button = new Button(this);
         button.setText(text);
         button.setAllCaps(false);
-        button.setTextSize(14);
+        button.setTextColor(COLOR_DANGER);
+        button.setTextSize(13);
         button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        button.setTextColor(DANGER);
-        button.setBackground(roundedBackground(DANGER_SOFT, 14, 0, Color.TRANSPARENT));
-        button.setPadding(dp(10), 0, dp(10), 0);
+        button.setBackground(createRoundedBackground(Color.rgb(255, 239, 239), dp(14), dp(1), Color.rgb(238, 190, 190)));
         return button;
     }
 
-    private Button createIconButton(String text) {
+    private Button createSmallDangerButton(String text) {
+        Button button = createDangerButton(text);
+        button.setTextSize(20);
+        button.setPadding(0, 0, 0, 0);
+        return button;
+    }
+
+    private Button createBackButton(String text) {
         Button button = new Button(this);
         button.setText(text);
         button.setAllCaps(false);
-        button.setTextSize(22);
-        button.setTextColor(DANGER);
-        button.setBackground(roundedBackground(DANGER_SOFT, 100, 0, Color.TRANSPARENT));
-        button.setPadding(0, 0, 0, dp(2));
-        return button;
-    }
+        button.setTextColor(COLOR_PRIMARY_DARK);
+        button.setTextSize(13);
+        button.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT);
+        button.setPadding(dp(4), 0, dp(4), 0);
+        button.setBackgroundColor(Color.TRANSPARENT);
 
-    private Button createBackButton(String text, Runnable action) {
-        Button button = createSecondaryButton("‹  " + text);
-        button.setOnClickListener(v -> action.run());
-        LinearLayout.LayoutParams params = wrapHeight(44);
-        params.setMargins(0, 0, 0, dp(12));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                dp(42)
+        );
+        params.setMargins(0, 0, 0, dp(6));
         button.setLayoutParams(params);
+
         return button;
     }
 
-    private GradientDrawable roundedBackground(int color, int radiusDp, int strokeDp, int strokeColor) {
+    private GradientDrawable createRoundedBackground(int fill, float radius, int strokeWidth, int strokeColor) {
         GradientDrawable drawable = new GradientDrawable();
-        drawable.setColor(color);
-        drawable.setCornerRadius(dp(radiusDp));
-        if (strokeDp > 0) {
-            drawable.setStroke(dp(strokeDp), strokeColor);
+        drawable.setColor(fill);
+        drawable.setCornerRadius(radius);
+        if (strokeWidth > 0) {
+            drawable.setStroke(strokeWidth, strokeColor);
         }
         return drawable;
     }
 
-    private GradientDrawable gradientBackground(int[] colors, int radiusDp) {
-        GradientDrawable drawable = new GradientDrawable(GradientDrawable.Orientation.TL_BR, colors);
-        drawable.setCornerRadius(dp(radiusDp));
-        return drawable;
+    private int lightBackground(int color) {
+        int r = Color.red(color);
+        int g = Color.green(color);
+        int b = Color.blue(color);
+
+        r = (int) (r + (255 - r) * 0.88);
+        g = (int) (g + (255 - g) * 0.88);
+        b = (int) (b + (255 - b) * 0.88);
+
+        return Color.rgb(r, g, b);
+    }
+
+    private int lighten(int color) {
+        int r = Color.red(color);
+        int g = Color.green(color);
+        int b = Color.blue(color);
+
+        r = (int) (r + (255 - r) * 0.66);
+        g = (int) (g + (255 - g) * 0.66);
+        b = (int) (b + (255 - b) * 0.66);
+
+        return Color.rgb(r, g, b);
     }
 
     private ScrollView wrapInScrollView(View child) {
         ScrollView scrollView = new ScrollView(this);
         scrollView.setFillViewport(true);
-        scrollView.setBackgroundColor(BG);
         scrollView.addView(child);
         return scrollView;
     }
@@ -1020,34 +1703,6 @@ public class MainActivity extends Activity {
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
         ));
-    }
-
-    private LinearLayout.LayoutParams fullWidthWrap() {
-        return new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-    }
-
-    private LinearLayout.LayoutParams fullWidthHeight(int heightDp) {
-        return new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(heightDp)
-        );
-    }
-
-    private LinearLayout.LayoutParams wrapHeight(int heightDp) {
-        return new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                dp(heightDp)
-        );
-    }
-
-    private LinearLayout.LayoutParams wrapParams() {
-        return new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
     }
 
     private int dp(int value) {
