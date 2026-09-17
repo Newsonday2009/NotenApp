@@ -4,13 +4,27 @@ plugins {
 
 android {
     namespace 'de.notenapp.android'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId 'de.notenapp.android'
         minSdk 26
-        targetSdk 35
-        versionCode 1
-        versionName '0.1'
+        targetSdk 36
+        versionCode 2
+        versionName '0.2-security'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildTypes {
+        release {
+            // Entfernt ungenutzten Code/Ressourcen und erschwert triviale Reverse-Engineering-Versuche.
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
     }
 }
