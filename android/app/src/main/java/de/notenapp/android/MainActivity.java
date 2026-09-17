@@ -1,6 +1,7 @@
 package de.notenapp.android;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
@@ -103,8 +104,22 @@ public class MainActivity extends Activity {
         financeCard.addView(createText("Finanzen", 19, true));
         financeCard.addView(createText("Dieser Bereich wird später ergänzt.", 15, false));
 
+        LinearLayout securityCard = createCard();
+        securityCard.addView(createText("Datenschutz & Sicherheit", 19, true));
+        securityCard.addView(createText(
+                "Keine Werbung, kein Tracking und aktuell keine Übertragung deiner Daten.",
+                15,
+                false
+        ));
+        Button privacyButton = new Button(this);
+        privacyButton.setText("Datenschutz ansehen");
+        privacyButton.setAllCaps(false);
+        privacyButton.setOnClickListener(v -> showPrivacyPage());
+        securityCard.addView(privacyButton);
+
         page.addView(schoolCard);
         page.addView(financeCard);
+        page.addView(securityCard);
 
         showInContent(wrapInScrollView(page));
     }
@@ -153,11 +168,14 @@ public class MainActivity extends Activity {
 
         EditText subjectInput = new EditText(this);
         subjectInput.setHint("Neues Fach, z. B. Mathematik");
+        // Verhindert, dass überlagerte/tapjacking-artige Touches auf dieses Eingabefeld wirken.
+        subjectInput.setFilterTouchesWhenObscured(true);
         page.addView(subjectInput);
 
         Button addButton = new Button(this);
         addButton.setText("Fach hinzufügen");
         addButton.setAllCaps(false);
+        addButton.setFilterTouchesWhenObscured(true);
         page.addView(addButton);
 
         LinearLayout actions = new LinearLayout(this);
@@ -172,6 +190,7 @@ public class MainActivity extends Activity {
         deleteButton.setText("Löschen");
         deleteButton.setAllCaps(false);
         deleteButton.setEnabled(false);
+        deleteButton.setFilterTouchesWhenObscured(true);
 
         actions.addView(openButton, new LinearLayout.LayoutParams(0, dp(50), 1f));
         actions.addView(deleteButton, new LinearLayout.LayoutParams(0, dp(50), 1f));
@@ -293,6 +312,61 @@ public class MainActivity extends Activity {
         card.addView(createText("Geplant", 19, true));
         card.addView(createText("Ausgaben nach Tag, Woche und Monat verwalten.", 15, false));
         page.addView(card);
+
+        showInContent(wrapInScrollView(page));
+    }
+
+    private void showPrivacyPage() {
+        LinearLayout page = createVerticalPage();
+
+        Button backButton = new Button(this);
+        backButton.setText("← Zurück");
+        backButton.setAllCaps(false);
+        backButton.setOnClickListener(v -> showHomePage());
+        page.addView(backButton);
+
+        page.addView(createTitle("Datenschutz & Sicherheit"));
+
+        LinearLayout privacyCard = createCard();
+        privacyCard.addView(createText("Aktueller Datenschutzstatus", 19, true));
+        privacyCard.addView(createText(
+                "• Die App fordert keine Standort-, Kamera-, Mikrofon-, Kontakt- oder Speicherberechtigungen an.\n" +
+                "• Die App enthält aktuell keine Werbung, Analyse- oder Tracking-SDKs.\n" +
+                "• Die App besitzt aktuell keine Internetberechtigung und überträgt keine eingegebenen Daten.\n" +
+                "• Unverschlüsselte Netzwerkverbindungen (HTTP) sind zusätzlich technisch gesperrt.\n" +
+                "• Android-Cloud-Backups sind deaktiviert, damit Schul- oder Finanzdaten später nicht unbeabsichtigt gesichert werden.\n" +
+                "• Es gibt aktuell kein Benutzerkonto.",
+                15,
+                false
+        ));
+
+        LinearLayout controlCard = createCard();
+        controlCard.addView(createText("Deine Kontrolle", 19, true));
+        controlCard.addView(createText(
+                "Du kannst alle aktuell in dieser Sitzung angelegten Fächer löschen. Sobald dauerhafte Speicherung eingebaut wird, wird diese Funktion entsprechend erweitert.",
+                15,
+                false
+        ));
+
+        Button clearButton = new Button(this);
+        clearButton.setText("Lokale Daten dieser Sitzung löschen");
+        clearButton.setAllCaps(false);
+        clearButton.setFilterTouchesWhenObscured(true);
+        clearButton.setOnClickListener(v -> new AlertDialog.Builder(this)
+                .setTitle("Daten löschen?")
+                .setMessage("Alle aktuell angelegten Fächer werden aus dieser Sitzung entfernt.")
+                .setNegativeButton("Abbrechen", null)
+                .setPositiveButton("Löschen", (dialog, which) -> {
+                    subjectsByClass.clear();
+                    Toast.makeText(this, "Lokale Sitzungsdaten gelöscht.", Toast.LENGTH_SHORT).show();
+                    showPrivacyPage();
+                })
+                .show());
+
+        controlCard.addView(clearButton);
+
+        page.addView(privacyCard);
+        page.addView(controlCard);
 
         showInContent(wrapInScrollView(page));
     }
