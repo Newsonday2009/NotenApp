@@ -20,13 +20,17 @@ import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public class MainActivity extends Activity {
 
     private FrameLayout contentContainer;
     private int selectedClass = 12;
+
     private final Map<Integer, ArrayList<String>> subjectsByClass = new HashMap<>();
+    private final Map<String, ArrayList<Integer>> writtenGradesBySubject = new HashMap<>();
+    private final Map<String, ArrayList<Integer>> oralGradesBySubject = new HashMap<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -131,7 +135,7 @@ public class MainActivity extends Activity {
 
         Spinner classSpinner = new Spinner(this);
         ArrayList<Integer> classes = new ArrayList<>();
-        for (int i = 5; i <= 13; i++) {
+        for (int i = 5; i <= 12; i++) {
             classes.add(i);
         }
         ArrayAdapter<Integer> classAdapter = new ArrayAdapter<>(
@@ -145,6 +149,16 @@ public class MainActivity extends Activity {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
         ));
+
+        TextView gradingInfo = createText(
+                selectedClass <= 10
+                        ? "Bewertung: Schulnoten 1 bis 6"
+                        : "Bewertung: Notenpunkte 0 bis 15",
+                14,
+                false
+        );
+        gradingInfo.setTextColor(Color.DKGRAY);
+        page.addView(gradingInfo);
 
         TextView subjectsTitle = createText("Fächer", 20, true);
         subjectsTitle.setPadding(0, dp(14), 0, dp(6));
@@ -168,7 +182,6 @@ public class MainActivity extends Activity {
 
         EditText subjectInput = new EditText(this);
         subjectInput.setHint("Neues Fach, z. B. Mathematik");
-        // Verhindert, dass überlagerte/tapjacking-artige Touches auf dieses Eingabefeld wirken.
         subjectInput.setFilterTouchesWhenObscured(true);
         page.addView(subjectInput);
 
@@ -256,7 +269,10 @@ public class MainActivity extends Activity {
 
         deleteButton.setOnClickListener(v -> {
             if (selectedIndex[0] >= 0 && selectedIndex[0] < subjects.size()) {
+                String deletedSubject = subjects.get(selectedIndex[0]);
                 subjects.remove(selectedIndex[0]);
+                writtenGradesBySubject.remove(createGradeKey(selectedClass, deletedSubject));
+                oralGradesBySubject.remove(createGradeKey(selectedClass, deletedSubject));
                 subjectAdapter.notifyDataSetChanged();
                 selectedIndex[0] = -1;
                 openButton.setEnabled(false);
@@ -277,30 +293,144 @@ public class MainActivity extends Activity {
         page.addView(backButton);
 
         page.addView(createTitle(subject));
-        page.addView(createSubtitle("Klassenstufe " + selectedClass));
+        page.addView(createSubtitle(
+                "Klassenstufe " + selectedClass + " • " +
+                        (selectedClass <= 10 ? "Noten 1–6" : "Notenpunkte 0–15")
+        ));
 
-        LinearLayout writtenCard = createCard();
-        writtenCard.addView(createText(selectedClass >= 11 ? "Klausuren" : "Klassenarbeiten", 19, true));
-        writtenCard.addView(createText("Hier können später schriftliche Noten eingetragen werden.", 15, false));
-        Button writtenButton = new Button(this);
-        writtenButton.setText("+ Eintrag hinzufügen");
-        writtenButton.setAllCaps(false);
-        writtenButton.setEnabled(false);
-        writtenCard.addView(writtenButton);
-
-        LinearLayout oralCard = createCard();
-        oralCard.addView(createText("Mündliche Noten", 19, true));
-        oralCard.addView(createText("Hier können später mündliche Bewertungen eingetragen werden.", 15, false));
-        Button oralButton = new Button(this);
-        oralButton.setText("+ Eintrag hinzufügen");
-        oralButton.setAllCaps(false);
-        oralButton.setEnabled(false);
-        oralCard.addView(oralButton);
-
-        page.addView(writtenCard);
-        page.addView(oralCard);
+        String writtenTitle = selectedClass >= 11 ? "Klausuren" : "Klassenarbeiten";
+        page.addView(createGradeCard(subject, writtenTitle, true));
+        page.addView(createGradeCard(subject, "Mündliche Noten", false));
 
         showInContent(wrapInScrollView(page));
+    }
+
+    private LinearLayout createGradeCard(String subject, String title, boolean written) {
+        LinearLayout card = createCard();
+        card.addView(createText(title, 19, true));
+
+        ArrayList<Integer> entries = getGradeEntries(selectedClass, subject, written);
+
+        if (entries.isEmpty()) {
+            card.addView(createText("Noch keine Einträge.", 15, false));
+        } else {
+            for (int i = 0; i < entries.size(); i++) {
+                final int index = i;
+                LinearLayout row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setGravity(Gravity.CENTER_VERTICAL);
+
+                TextView valueText = createText(
+                        (i + 1) + ". Eintrag: " + formatGradeValue(entries.get(i)),
+                        16,
+                        false
+                );
+
+                Button removeButton = new Button(this);
+                removeButton.setText("✕");
+                removeButton.setContentDescription("Eintrag löschen");
+                removeButton.setFilterTouchesWhenObscured(true);
+                removeButton.setOnClickListener(v -> {
+                    entries.remove(index);
+                    showSubjectPage(subject);
+                });
+
+                row.addView(valueText, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                row.addView(removeButton, new LinearLayout.LayoutParams(dp(56), dp(48)));
+                card.addView(row);
+            }
+
+            TextView averageText = createText("Durchschnitt: " + calculateAverage(entries), 16, true);
+            averageText.setPadding(0, dp(8), 0, dp(8));
+            card.addView(averageText);
+        }
+
+        LinearLayout addRow = new LinearLayout(this);
+        addRow.setOrientation(LinearLayout.HORIZONTAL);
+        addRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        Spinner gradeSpinner = new Spinner(this);
+        ArrayList<Integer> possibleValues = getPossibleGradeValues();
+        ArrayList<String> displayValues = new ArrayList<>();
+        for (Integer value : possibleValues) {
+            displayValues.add(formatGradeValue(value));
+        }
+
+        ArrayAdapter<String> gradeAdapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_spinner_dropdown_item,
+                displayValues
+        );
+        gradeSpinner.setAdapter(gradeAdapter);
+
+        Button addGradeButton = new Button(this);
+        addGradeButton.setText(selectedClass <= 10 ? "Note hinzufügen" : "Punkte hinzufügen");
+        addGradeButton.setAllCaps(false);
+        addGradeButton.setFilterTouchesWhenObscured(true);
+        addGradeButton.setOnClickListener(v -> {
+            int position = gradeSpinner.getSelectedItemPosition();
+            if (position >= 0 && position < possibleValues.size()) {
+                entries.add(possibleValues.get(position));
+                showSubjectPage(subject);
+            }
+        });
+
+        addRow.addView(gradeSpinner, new LinearLayout.LayoutParams(0, dp(52), 1f));
+        addRow.addView(addGradeButton, new LinearLayout.LayoutParams(0, dp(52), 1.4f));
+        card.addView(addRow);
+
+        return card;
+    }
+
+    private ArrayList<Integer> getPossibleGradeValues() {
+        ArrayList<Integer> values = new ArrayList<>();
+        if (selectedClass <= 10) {
+            for (int grade = 1; grade <= 6; grade++) {
+                values.add(grade);
+            }
+        } else {
+            for (int points = 15; points >= 0; points--) {
+                values.add(points);
+            }
+        }
+        return values;
+    }
+
+    private String formatGradeValue(int value) {
+        if (selectedClass <= 10) {
+            return "Note " + value;
+        }
+        return value + (value == 1 ? " Punkt" : " Punkte");
+    }
+
+    private String calculateAverage(ArrayList<Integer> entries) {
+        if (entries.isEmpty()) {
+            return "–";
+        }
+
+        double sum = 0;
+        for (Integer entry : entries) {
+            sum += entry;
+        }
+        double average = sum / entries.size();
+
+        if (selectedClass <= 10) {
+            return String.format(Locale.GERMANY, "%.2f", average);
+        }
+        return String.format(Locale.GERMANY, "%.2f Punkte", average);
+    }
+
+    private ArrayList<Integer> getGradeEntries(int classLevel, String subject, boolean written) {
+        String key = createGradeKey(classLevel, subject);
+        Map<String, ArrayList<Integer>> source = written ? writtenGradesBySubject : oralGradesBySubject;
+        if (!source.containsKey(key)) {
+            source.put(key, new ArrayList<>());
+        }
+        return source.get(key);
+    }
+
+    private String createGradeKey(int classLevel, String subject) {
+        return classLevel + "::" + subject.trim().toLowerCase(Locale.ROOT);
     }
 
     private void showFinancePage() {
@@ -343,7 +473,7 @@ public class MainActivity extends Activity {
         LinearLayout controlCard = createCard();
         controlCard.addView(createText("Deine Kontrolle", 19, true));
         controlCard.addView(createText(
-                "Du kannst alle aktuell in dieser Sitzung angelegten Fächer löschen. Sobald dauerhafte Speicherung eingebaut wird, wird diese Funktion entsprechend erweitert.",
+                "Du kannst alle aktuell in dieser Sitzung angelegten Fächer und Noteneinträge löschen. Sobald dauerhafte Speicherung eingebaut wird, wird diese Funktion entsprechend erweitert.",
                 15,
                 false
         ));
@@ -354,10 +484,12 @@ public class MainActivity extends Activity {
         clearButton.setFilterTouchesWhenObscured(true);
         clearButton.setOnClickListener(v -> new AlertDialog.Builder(this)
                 .setTitle("Daten löschen?")
-                .setMessage("Alle aktuell angelegten Fächer werden aus dieser Sitzung entfernt.")
+                .setMessage("Alle aktuell angelegten Fächer und Noteneinträge werden aus dieser Sitzung entfernt.")
                 .setNegativeButton("Abbrechen", null)
                 .setPositiveButton("Löschen", (dialog, which) -> {
                     subjectsByClass.clear();
+                    writtenGradesBySubject.clear();
+                    oralGradesBySubject.clear();
                     Toast.makeText(this, "Lokale Sitzungsdaten gelöscht.", Toast.LENGTH_SHORT).show();
                     showPrivacyPage();
                 })
