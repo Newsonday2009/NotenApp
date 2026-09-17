@@ -1,3 +1,4 @@
 plugins {
-    id 'com.android.application' version '8.7.3' apply false
+    // API 36 (Android 16) benötigt mindestens AGP 8.9.1.
+    id 'com.android.application' version '8.9.1' apply false
 }
